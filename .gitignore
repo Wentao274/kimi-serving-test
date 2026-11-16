@@ -218,3 +218,22 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# ===== 测试结果输出（所有套件）=====
+# 报告根目录：reports/engineering_<时间戳>/ 与 reports/stress_<时间戳>/
+# （含 report.html / report_data.json / windows.json / metrics.jsonl /
+#   summary.json / quality_incidents.json 等全部运行产物）
+reports/
+# 其他常见测试输出位置（自定义 --report-dir 或本地运行产物）
+test-results/
+test_outputs/
+
+# ===== 测试数据文件（不入库）=====
+# 官方附件测试用例（图片 25 条 / OpenClaw 12 条）：
+# 轨迹内容含第三方凭据且为 in-house 数据，GitHub Push Protection 拦截。
+# 文件仅保留在本地，获取与放置方式见 README「数据文件准备」。
+engineering/data/
+test-resource/
+
+# 本地 IDE 配置（非测试输出，防止误提交）
+.idea/
