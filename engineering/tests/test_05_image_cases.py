@@ -1,4 +1,4 @@
-﻿"""条目#5 图片输入测试用例（25 条，附件回放）。
+﻿"""条目#5 图片输入测试用例（25 条，附件回放）+ 图片格式覆盖（7 种）。
 
 原始要求：供应商应能够跑通如下测试用例，覆盖多个维度——
 不同的 image_url 格式（字符串 vs {"url": ...} 对象）、不同的 finish_reason
@@ -14,7 +14,11 @@
   case25（1000 张图）的 flipped 模式成本高，需 --include-heavy 才运行；
 - 校验 HTTP 2xx + finish_reason 与期望一致 + tool_calls 结构合法。
 
-注意：图片 URL 有效期至 2027-03-18，过期后需替换图床。
+格式覆盖说明：附件图片全部来自 blobproxy（URL 无格式标记），不覆盖格式维度；
+图片格式（jpeg/png/gif/tiff/bmp/webp/heic）由 test_05_image_formats 以本地
+生成的小图（base64 data URL，免图床依赖）逐格式验证供应商解码能力。
+
+注意：附件图片 URL 有效期至 2027-03-18，过期后需替换图床。
 """
 
 from __future__ import annotations
@@ -107,3 +111,62 @@ def test_05_image_case(client, rec, settings, case_idx, mode):
     if stream:
         rec.expect("usage 非空（include_usage 生效）", bool(result.usage),
                    f"usage={result.usage}")
+
+
+# ---------------------------------------------------------------- 图片格式覆盖
+_FORMAT_SPECS = [
+    ("jpeg", "JPEG", "image/jpeg"),
+    ("png", "PNG", "image/png"),
+    ("gif", "GIF", "image/gif"),
+    ("tiff", "TIFF", "image/tiff"),
+    ("bmp", "BMP", "image/bmp"),
+    ("webp", "WEBP", "image/webp"),
+    ("heic", "HEIF", "image/heic"),
+]
+
+
+def _make_image_data_url(pil_fmt: str, mime: str) -> str:
+    """本地生成一张小测试图并编码为 data URL（不依赖外部图床）。"""
+    import base64
+    import io
+    from PIL import Image, ImageDraw
+
+    img = Image.new("RGB", (96, 96), (30, 90, 160))
+    d = ImageDraw.Draw(img)
+    d.rectangle([16, 16, 80, 80], fill=(220, 60, 60))
+    d.rectangle([36, 36, 60, 60], fill=(240, 220, 60))
+    if pil_fmt == "GIF":
+        img = img.convert("P")
+    if pil_fmt == "HEIF":
+        import pillow_heif
+        pillow_heif.register_heif_opener()
+    buf = io.BytesIO()
+    img.save(buf, format=pil_fmt)
+    b64 = base64.b64encode(buf.getvalue()).decode("ascii")
+    return f"data:{mime};base64,{b64}"
+
+
+@pytest.mark.parametrize("fmt_name,pil_fmt,mime", _FORMAT_SPECS,
+                         ids=[s[0] for s in _FORMAT_SPECS])
+def test_05_image_formats(client, rec, fmt_name, pil_fmt, mime):
+    """图片格式支持：jpeg/png/gif/tiff/bmp/webp/heic（本地生成 base64 小图）"""
+    try:
+        data_url = _make_image_data_url(pil_fmt, mime)
+    except Exception as exc:
+        pytest.fail(f"本地生成 {fmt_name} 测试图失败（编码库缺失？pip install -r requirements.txt）: {exc}")
+    req = {
+        "model": client.model,
+        "messages": [{"role": "user", "content": [
+            {"type": "text", "text": "请用一句话描述这张图片。"},
+            {"type": "image_url", "image_url": {"url": data_url}},
+        ]}],
+        "max_tokens": 256,
+        "thinking": {"type": "disabled"},
+    }
+    rec.extra["format"] = fmt_name
+    result = client.chat(req)
+    rec.attach_result(req, result, client.chat_completions_url, client.masked_headers())
+    rec.expect(f"HTTP 2xx（{fmt_name} 格式被供应商解码）", result.ok,
+               f"status={result.status_code} err={result.error}")
+    rec.expect("content 非空（解码后有正常响应）", bool(result.content.strip()),
+               f"content={result.content[:120]!r}")

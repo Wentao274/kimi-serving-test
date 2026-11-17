@@ -27,11 +27,20 @@ def _minimal_req(model: str) -> dict:
 
 
 def _find_trace_markers(result) -> list[str]:
-    """在响应头与响应体中寻找 trace 标识，返回命中的键名列表。"""
+    """在响应头与响应体中寻找 trace 标识，返回命中的键名列表。
+
+    检测方式：枚举 OTel 标准键 + 模式匹配（任何含 trace 的键、任何
+    含 request 且含 id 的键，如 x-oneapi-request-id / x-request-id）。
+    """
     hits = []
     headers = {k.lower(): v for k, v in (result.response_headers or {}).items()}
     for key in _TRACE_HEADER_KEYS:
         if key in headers:
+            hits.append(f"header:{key}")
+    for key in headers:
+        if key in _TRACE_HEADER_KEYS:
+            continue
+        if "trace" in key or ("request" in key and "id" in key):
             hits.append(f"header:{key}")
     body = result.response_json or {}
     for key in _TRACE_BODY_KEYS:

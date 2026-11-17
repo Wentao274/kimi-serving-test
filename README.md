@@ -8,10 +8,12 @@ Kimi model serving verify test — K3.1 流量外采供应商 Serving 验收测�
 ├── run_tests.py            # 主入口（分发各测试套件）
 ├── requirements.txt
 ├── serving_requirements.md # K3.1 要求分析归纳与测试实现方案
+├── Jenkinsfile             # Jenkins 远程触发流水线（SUITE choice 分流，不改测试逻辑）
+├── scripts/                # 触发层辅助（run_suite.sh 参数透传 / gen_stats.py 统计）
 ├── engineering/            # 工程验收（自研，条目对齐原始需求文档）
 │   ├── core/               #   框架：配置 / HTTP 客户端 / 用例记录 / HTML 报告
 │   ├── data/               #   附件用例（本地放置，不入库，见「数据文件准备」）
-│   └── tests/              #   test_00–test_13（编号 = 截图条目号；#7/#9/#10/#13 为 pending 占位）
+│   └── tests/              #   test_00–test_13（编号 = 截图条目号；#7/#9/#10 为 pending 占位）
 ├── stress/                 # 压力测试（P0 基线→P1 爬坡→P2 平台→P3 脉冲）
 │   ├── run_stress.py       #   CLI 入口
 │   └── core/               #   合同阈值 / 流量模型 / 异步引擎 / 窗口聚合判定 / 报告
@@ -81,7 +83,18 @@ engineering/data/
 5. **图片源**：压测 image 场景缺省复用工程验收图片 URL（同受 2027-03-18 有效期约束），也可用 `--image-url` 多次指定自备图床。
 6. **先自检再长跑**：正式 24h 前，先用 demo 参数对供应商做小流量自检（`--window-s 600 --platform-duration 300` 或 README 中的 demo 命令），确认监控链路、判定口径、报告产出全部正常。
 
-## 快速开始
+## 执行方式（两种，测试逻辑完全一致）
+
+| | 方式一：手动执行 | 方式二：Jenkins 远程触发 |
+|---|---|---|
+| 入口 | `python run_tests.py <suite> [args]` | 根目录 `Jenkinsfile`（SUITE choice 分流） |
+| 适用 | 本地/任意机器调试、单次验证、demo 自检 | 定时/远程批量验收、24h 压测、报告邮件分发 |
+| 触发 | 命令行直接运行（见「快速开始」「工程验收」「压力测试」节） | `buildWithParameters` API 或 Jenkins 页面点构建（见「Jenkins 远程触发」节） |
+| 报告 | `reports/<suite>_<时间戳>/` | 远程机 `builds/<tester>/<model>/<构建号>/` + 邮件附件 |
+
+> 两种方式最终调用的是**同一套测试代码**（Jenkins 经 `scripts/run_suite.sh` 透传参数调用同一个 `run_tests.py`），断言、阈值、判定、报告格式无任何差异。
+
+## 快速开始（方式一：手动执行）
 
 ```bash
 # 环境准备见上一节（venv + pip install -r requirements.txt）
@@ -107,7 +120,7 @@ python run_tests.py engineering \
 | test_02_param_defaults | #2 | 参数默认值与官方一致；非默认值必须 HTTP 4xx；logprobs 分布指纹对照 |
 | test_03_max_tokens_default | #3 | max_tokens 默认 131072、显式修改生效、heavy 全量验证 |
 | test_04_no_system_prompt | #4 | 默认不添加 System Prompt（身份探针/泄露探针/官方对照） |
-| test_05_image_cases | #5 | 图片用例 25 条回放（native + flipped stream，千图上限） |
+| test_05_image_cases | #5 | 图片用例 25 条回放（native + flipped stream，千图上限）+ 7 种图片格式覆盖（jpeg/png/gif/tiff/bmp/webp/heic，本地生成 base64 小图） |
 | test_06_trace_id | #6 | traceparent 头受理 + trace 标识回传检查 |
 | test_07_token_statistics ⏸ | #7 | Token 统计按 model_id 分类（月度/季度对账）：功能性验收无用例文件，待供应商统计接口文档；SKIPPED+原因 占位 |
 | test_08_provider_deploy_id | #8 | 响应头 X-Msh-ProviderDeployId 存在且非空（流式/非流式） |
@@ -115,7 +128,7 @@ python run_tests.py engineering \
 | test_10_new_model_spec ⏸ | #10 | New Model Spec（K3.1 新功能）：待规范文档；报告中以 SKIPPED+原因 占位标注 |
 | test_11_thinking_effort | 补充（上线前#2） | effort low/high/max 三档、默认 max（问模型档位硬校验） |
 | test_12_openclaw_cases | 补充（上线前#7） | OpenClaw 用例 12 条回放（finish_reason=tool_calls） |
-| test_13_preserve_thinking ⏸ | 补充（上线前#9） | Preserve thinking：经 KVV 单独测试；报告中以 SKIPPED+原因 占位标注 |
+| test_13_preserve_thinking | 补充（上线前#9） | Preserve thinking 锚点验证：prompt_tokens=160 + 5 数字完全一致；不传 keep 对照（soft） |
 
 ### 常用选项
 
@@ -150,6 +163,49 @@ python run_tests.py stress --base-url https://vendor/v1 --api-key sk-xxx --model
 - 判定：容量无 >10min 塌陷 / TTFT 分档窗口达标 / OTPS 超标 ≤1% / 失败率 <1%（TPM 阈值内外口径）/ 429 时延 P90 ≤5s / 质量四项零事故；判定失败退出码非 0
 - RTO 演练（P4）需供应商配合摘流，以 platform 窗口失败率曲线人工对照（高峰 ≤10min / 低峰 ≤60min）
 - demo 验证：`--window-s 10 --prompt-scale 0.001 --platform-duration 20 --spike-duration 6 --ramp-stages "warm:5:4,climb:5:8"`
+
+## Jenkins 远程触发（方式二：engineering / stress 共用流水线）
+
+根目录 `Jenkinsfile` 为两套件共用的声明式流水线（结构参照 Kimi-Vendor-Verifier），通过 **SUITE choice 参数**分流：
+
+| 方式 | 说明 |
+|---|---|
+| `SUITE=engineering` | 工程验收（pytest），参数：`ENG_FILTER`（-k 过滤）、`INCLUDE_HEAVY`、`OFFICIAL_*` |
+| `SUITE=stress` | 压力测试，参数：`STRESS_PHASE`、`AGREED_*`、`LOAD_THRESHOLD_TPM`、`PLATFORM_DURATION`（默认 86400=24h，与套件原始默认一致；短时验证显式填小）、`SPIKE_*`、`WINDOW_S`、`PROMPT_SCALE`、`RAMP_STAGES` |
+
+流水线执行（master → SSH 远程测试机）：打印参数 → API 连通性预检（失败即终止后续）→ 环境检查（清残留进程 / git pull / uv venv / engineering 数据文件检查）→ 按 SUITE 运行 → 报告拉取 → 邮件（**正文仅汇总统计，报告 HTML 以原格式作为附件发送**）→ 保留最近 20 构建。报告输出在远程机 `builds/<tester>/<model>/<构建号>/`。
+
+### Jenkins job 配置（一次性）
+
+1. 新建 **Pipeline** job → Pipeline definition 选 **Pipeline script from SCM**：填本仓库地址与凭据，Script Path 填 `Jenkinsfile`；
+2. 勾选「**触发远程构建**」（Build Triggers → Trigger builds remotely），设置 Authentication Token（如 `kst-trigger-token`）；
+3. 确认远程测试机已按「环境准备」放置 `engineering/data/` 数据文件（engineering 套件必需，流水线会检查）。
+
+### 远程触发命令
+
+```bash
+# 工程验收（全量）
+curl -X POST "https://<jenkins>/job/<job-name>/buildWithParameters?token=kst-trigger-token" \
+    --user "<user>:<api-token>" \
+    --data-urlencode "SUITE=engineering" \
+    --data-urlencode "MODEL=kimi-k3.1" \
+    --data-urlencode "BASE_URL=https://vendor.example.com" \
+    --data-urlencode "API_KEY=sk-xxx" \
+    --data-urlencode "TESTER=liwt"
+
+# 压力测试（24h 平台期）
+curl -X POST "https://<jenkins>/job/<job-name>/buildWithParameters?token=kst-trigger-token" \
+    --user "<user>:<api-token>" \
+    --data-urlencode "SUITE=stress" \
+    --data-urlencode "MODEL=kimi-k3.1" \
+    --data-urlencode "BASE_URL=https://vendor.example.com" \
+    --data-urlencode "API_KEY=sk-xxx" \
+    --data-urlencode "PLATFORM_DURATION=86400" \
+    --data-urlencode "AGREED_CONCURRENCY=50" \
+    --data-urlencode "AGREED_TPM=100000000"
+```
+
+> 本地脚本 `scripts/run_suite.sh` + `scripts/gen_stats.py` 与 Jenkins 解耦，也可在任意 Linux 机器上手动 `export` 对应环境变量后执行同一入口。
 
 ## 注意
 

@@ -9,6 +9,10 @@
 
 全部用例期望 finish_reason == "tool_calls"，且 tool_calls 结构合法
 （function.name 非空、arguments 为合法 JSON）。
+
+回放对齐说明：官方用例 case12 原生 stream=false 却携带 stream_options，
+官方平台容忍、严格网关按 OpenAI 规范返回 400；回放时与官方平台容忍度
+对齐，stream=false 自动剥离 stream_options 并在用例记录中标注。
 """
 
 from __future__ import annotations
@@ -48,11 +52,21 @@ def test_12_openclaw_case(client, rec, settings, case_idx):
     n_msgs = len(req.get("messages", []))
     stream = bool(req.get("stream", False))
 
+    # 与官方平台容忍度对齐：stream=false 时剥离 stream_options
+    # （官方用例 case12 原生 stream=false 却带 stream_options；官方平台容忍，
+    #   严格网关会按 OpenAI 规范返回 400。剥离不影响测试点本身）
+    stripped = None
+    if not stream and "stream_options" in req:
+        stripped = req.pop("stream_options")
+
     rec.extra.update({
         "case_no": case_idx, "messages": n_msgs, "stream": stream,
         "n_tools": len(req.get("tools") or []),
         "thinking": req.get("thinking"),
     })
+    if stripped is not None:
+        rec.extra["stripped_stream_options"] = stripped
+        rec.extra["note"] = "stream=false，已剥离原用例中的 stream_options（与官方平台容忍度对齐）"
     # 大 prompt（最多 400KB+）prefill 耗时较长，超时翻倍
     result = client.chat(req, timeout=settings.timeout * 2)
     rec.attach_result(req, result, client.chat_completions_url, client.masked_headers())
