@@ -311,9 +311,12 @@ export KST_OUT_DIR="${params.WORK_DIR}/${BUILD_OUTPUT_DIR}/official"
 export ENG_FILTER="${engFilter}"
 export ENG_INCLUDE_HEAVY="${params.INCLUDE_HEAVY}"
 
-bash scripts/run_suite.sh
-
+RC=0
+bash scripts/run_suite.sh || RC=\$?
+# 无论对比执行成败都生成对比报告（set -e 下 run_suite 失败不应阻断 gen_compare）
 python scripts/gen_compare.py ${BUILD_OUTPUT_DIR}
+echo "official run rc=\${RC}"
+exit \${RC}
 ENDSSH"""
                         }
                     }
