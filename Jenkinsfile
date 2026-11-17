@@ -18,9 +18,11 @@ pipeline {
         // ---------------- 工程验收（SUITE=engineering 时生效） ----------------
         string(name: 'ENG_FILTER', defaultValue: '', description: '工程验收：pytest -k 过滤表达式（空=全量），如 "test_05 or test_12"、"test_01"')
         booleanParam(name: 'INCLUDE_HEAVY', defaultValue: false, description: '工程验收：运行重负载用例（#3 全量 131072 生成约70分钟、#5 千图 flipped）')
-        string(name: 'OFFICIAL_BASE_URL', defaultValue: '', description: '工程验收（可选）：官方 API 根地址，用于 #4 System Prompt 官方基线对照')
+        string(name: 'OFFICIAL_BASE_URL', defaultValue: '', description: '工程验收（可选）：官方 API 根地址，用于 #4 System Prompt 官方基线对照及 COMPARE_OFFICIAL 双跑')
         password(name: 'OFFICIAL_API_KEY', defaultValue: '', description: '工程验收（可选）：官方 API Key')
         string(name: 'OFFICIAL_MODEL', defaultValue: '', description: '工程验收（可选）：官方模型名')
+        booleanParam(name: 'COMPARE_OFFICIAL', defaultValue: false, description: '工程验收：开启后全量用例在官方渠道再跑一遍并逐用例对比（默认不比对；需配置 OFFICIAL_*）')
+        string(name: 'COMPARE_FILTER', defaultValue: '', description: '对比模式的用例范围（pytest -k 表达式，空=全量；设置后两侧均按此范围执行以保证口径一致。示例："test_05 or test_12" 只对比图片用例与 OpenClaw 用例；"test_05" 只对比图片用例）')
 
         // ---------------- 压力测试（SUITE=stress 时生效） ----------------
         choice(name: 'STRESS_PHASE', choices: ['full', 'baseline', 'ramp', 'platform', 'spike'], description: '压测阶段：full=P0基线→P1爬坡→P2平台→P3脉冲全流程')
@@ -66,6 +68,7 @@ pipeline {
                         println("用例过滤:     ${params.ENG_FILTER ?: '(全量)'}")
                         println("重负载用例:   ${params.INCLUDE_HEAVY}")
                         println("官方对照:     ${params.OFFICIAL_BASE_URL ? params.OFFICIAL_BASE_URL : '(不启用)'}")
+                        println("官方双跑对比: ${params.COMPARE_OFFICIAL ? "开启（范围: ${params.COMPARE_FILTER ?: '(全量)'}）" : '关闭'}")
                     } else {
                         println("压测阶段:     ${params.STRESS_PHASE}")
                         println("约定并发:     ${params.AGREED_CONCURRENCY}")
@@ -212,6 +215,8 @@ ENDSSH"""
                     def apiKey = params.API_KEY?.toString()?.trim()
                     if (!apiKey) { apiKey = 'EMPTY' }
                     def officialKey = params.OFFICIAL_API_KEY?.toString()?.trim() ?: ''
+                    // 对比模式且有 COMPARE_FILTER 时，两侧统一按 COMPARE_FILTER 范围执行
+                    def engFilter = (params.COMPARE_OFFICIAL && params.COMPARE_FILTER?.trim()) ? params.COMPARE_FILTER : params.ENG_FILTER
                     sshagent(credentials: ["${SSH_CREDENTIALS}"]) {
                         catchError(buildResult: 'UNSTABLE', stageResult: 'FAILURE') {
                             sh """
@@ -225,13 +230,52 @@ export KST_BASE_URL="${env.BASE_URL_V1}"
 export KST_API_KEY="${apiKey}"
 export KST_MODEL="${params.MODEL}"
 export KST_OUT_DIR="${params.WORK_DIR}/${BUILD_OUTPUT_DIR}"
-export ENG_FILTER="${params.ENG_FILTER}"
+export ENG_FILTER="${engFilter}"
 export ENG_INCLUDE_HEAVY="${params.INCLUDE_HEAVY}"
 export OFFICIAL_BASE_URL="${params.OFFICIAL_BASE_URL}"
 export OFFICIAL_API_KEY="${officialKey}"
 export OFFICIAL_MODEL="${params.OFFICIAL_MODEL}"
 
 bash scripts/run_suite.sh
+ENDSSH"""
+                        }
+                    }
+                }
+            }
+        }
+
+        stage('官方渠道对比执行') {
+            when {
+                expression { env.CONNECTIVITY_FAILED != 'true' && params.SUITE == 'engineering' && params.COMPARE_OFFICIAL }
+            }
+            steps {
+                script {
+                    if (!params.OFFICIAL_BASE_URL?.trim() || !params.OFFICIAL_API_KEY?.toString()?.trim() || !params.OFFICIAL_MODEL?.trim()) {
+                        println("=== COMPARE_OFFICIAL 已启用但 OFFICIAL_* 未完整配置，跳过官方对比执行 ===")
+                        return
+                    }
+                    def officialBaseV1 = params.OFFICIAL_BASE_URL.replaceAll('/+$', '').replaceAll('/?v1$', '') + '/v1'
+                    def officialKey = params.OFFICIAL_API_KEY.toString().trim()
+                    def engFilter = (params.COMPARE_OFFICIAL && params.COMPARE_FILTER?.trim()) ? params.COMPARE_FILTER : params.ENG_FILTER
+                    sshagent(credentials: ["${SSH_CREDENTIALS}"]) {
+                        catchError(buildResult: 'UNSTABLE', stageResult: 'FAILURE') {
+                            sh """
+ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${REMOTE_HOST} << 'ENDSSH'
+set -e
+cd ${params.WORK_DIR}
+mkdir -p ${BUILD_OUTPUT_DIR}/official
+
+export SUITE="engineering"
+export KST_BASE_URL="${officialBaseV1}"
+export KST_API_KEY="${officialKey}"
+export KST_MODEL="${params.OFFICIAL_MODEL}"
+export KST_OUT_DIR="${params.WORK_DIR}/${BUILD_OUTPUT_DIR}/official"
+export ENG_FILTER="${engFilter}"
+export ENG_INCLUDE_HEAVY="${params.INCLUDE_HEAVY}"
+
+bash scripts/run_suite.sh
+
+python scripts/gen_compare.py ${BUILD_OUTPUT_DIR}
 ENDSSH"""
                         }
                     }
@@ -333,6 +377,33 @@ fi
                         }
                         def gitSyncFailed = (codeVer.gitsync == 'failed')
 
+                        // 供应商 vs 官方 对比汇总（COMPARE_OFFICIAL 开启时生成）
+                        def cmp = [:]
+                        def cmpFile = "reports/${BUILD_NUMBER}/compare.properties"
+                        if (fileExists(cmpFile)) {
+                            readFile(file: cmpFile, encoding: 'UTF-8').split('\n').each { line ->
+                                def m = line.trim() =~ /^([A-Za-z]+)=(.*)$/
+                                if (m.matches()) {
+                                    cmp[m.group(1)] = m.group(2)
+                                }
+                            }
+                        }
+                        def compareSection = ''
+                        if (cmp) {
+                            compareSection = """
+<h2>供应商 vs 官方 对比汇总</h2>
+<table>
+    <tr><th></th><th>总用例</th><th>通过</th><th>通过率</th></tr>
+    <tr><th>供应商</th><td>${cmp.vendortotal}</td><td>${cmp.vendorpassed}</td><td>${cmp.vendorrate}%</td></tr>
+    <tr><th>官方</th><td>${cmp.officialtotal}</td><td>${cmp.officialpassed}</td><td>${cmp.officialrate}%</td></tr>
+    <tr><th>双边均通过</th><td colspan="2">${cmp.bothpass}</td></tr>
+    <tr><th>仅供应商失败</th><td colspan="2" style="color:#dc2626">${cmp.vendoronlyfail}</td></tr>
+    <tr><th>仅官方失败</th><td colspan="2">${cmp.officialonlyfail}</td></tr>
+    <tr><th>双边均失败</th><td colspan="2">${cmp.bothfail}</td></tr>
+</table>
+<p>逐用例对比见附件 <strong>compare.html</strong>；两侧完整报告见附件（供应商 report.html / 官方 report.html）。</p>"""
+                        }
+
                         def reportFile = sh(script: "ls reports/${BUILD_NUMBER}/engineering_*/report.html reports/${BUILD_NUMBER}/stress_*/report.html 2>/dev/null | head -1", returnStdout: true).trim()
 
                         // 报告 HTML 以原格式作为附件发送，邮件正文只保留汇总统计（不内嵌报告，避免邮件客户端破坏样式）
@@ -390,6 +461,7 @@ ${gitSyncFailed ? "<div style='background-color: #ff9800; color: white; padding:
     <tr><th>执行时间</th><td>${currentBuild.durationString}</td></tr>
     <tr><th>构建状态</th><td>${currentBuild.currentResult}</td></tr>
 </table>
+${compareSection}
 ${reportFile && fileExists(reportFile) ? '<p>详细测试报告（原始 HTML 格式）请查看邮件附件 <strong>report.html</strong>。</p>' : '<p>未能生成 HTML 测试报告，请查看构建日志。</p>'}
 <p>Jenkins 构建地址: <a href="${env.BUILD_URL}">${env.BUILD_URL}</a></p>
 <div class="email-footer">此邮件由 Jenkins 自动发送，请勿回复。</div>
@@ -400,6 +472,12 @@ ${reportFile && fileExists(reportFile) ? '<p>详细测试报告（原始 HTML �
                         if (reportFile && fileExists(reportFile)) {
                             attachPatterns.add("reports/${BUILD_NUMBER}/engineering_*/report.html")
                             attachPatterns.add("reports/${BUILD_NUMBER}/stress_*/report.html")
+                        }
+                        if (fileExists("reports/${BUILD_NUMBER}/official/engineering_*/report.html")) {
+                            attachPatterns.add("reports/${BUILD_NUMBER}/official/engineering_*/report.html")
+                        }
+                        if (fileExists("reports/${BUILD_NUMBER}/compare.html")) {
+                            attachPatterns.add("reports/${BUILD_NUMBER}/compare.html")
                         }
 
                         emailext(

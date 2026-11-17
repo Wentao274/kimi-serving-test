@@ -171,7 +171,7 @@ python run_tests.py stress --base-url https://vendor/v1 --api-key sk-xxx --model
 
 | 方式 | 说明 |
 |---|---|
-| `SUITE=engineering` | 工程验收（pytest），参数：`ENG_FILTER`（-k 过滤）、`INCLUDE_HEAVY`、`OFFICIAL_*` |
+| `SUITE=engineering` | 工程验收（pytest），参数：`ENG_FILTER`（-k 过滤）、`INCLUDE_HEAVY`、`OFFICIAL_*`、`COMPARE_OFFICIAL`（官方双跑对比，默认关）、`COMPARE_FILTER`（对比范围，空=全量，示例 `"test_05 or test_12"`） |
 | `SUITE=stress` | 压力测试，参数：`STRESS_PHASE`、`AGREED_*`、`LOAD_THRESHOLD_TPM`、`PLATFORM_DURATION`（默认 86400=24h，与套件原始默认一致；短时验证显式填小）、`SPIKE_*`、`WINDOW_S`、`PROMPT_SCALE`、`RAMP_STAGES` |
 
 流水线执行（master → SSH 远程测试机）：打印参数 → API 连通性预检（失败即终止后续）→ 环境检查（清残留进程 / git pull 并**记录代码版本** / uv venv / engineering 数据文件检查）→ 按 SUITE 运行 → 报告拉取 → 邮件（**正文仅汇总统计 + 测试代码版本，报告 HTML 以原格式作为附件发送；git pull 失败时邮件醒目告警**）→ 保留最近 20 构建。报告输出在远程机 `builds/<suite>/<tester>/<model>/<构建号>/`（engineering 与 stress 分目录）。
@@ -207,6 +207,8 @@ curl -X POST "https://<jenkins>/job/<job-name>/buildWithParameters?token=kst-tri
 ```
 
 > 本地脚本 `scripts/run_suite.sh` + `scripts/gen_stats.py` 与 Jenkins 解耦，也可在任意 Linux 机器上手动 `export` 对应环境变量后执行同一入口。
+>
+> **官方双跑对比（COMPARE_OFFICIAL）**：开启且配置 `OFFICIAL_*` 后，工程验收全量用例在官方渠道再执行一遍（与供应商同口径，`COMPARE_FILTER` 可收窄范围），`scripts/gen_compare.py` 逐用例生成对比（双边均通过 / 仅供应商失败 / 仅官方失败 / 双边均失败），邮件正文附对比汇总表，附件含两侧 report.html 与 compare.html。
 
 ## 注意
 
