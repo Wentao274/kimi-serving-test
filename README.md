@@ -90,7 +90,7 @@ engineering/data/
 | 入口 | `python run_tests.py <suite> [args]` | 根目录 `Jenkinsfile`（SUITE choice 分流） |
 | 适用 | 本地/任意机器调试、单次验证、demo 自检 | 定时/远程批量验收、24h 压测、报告邮件分发 |
 | 触发 | 命令行直接运行（见「快速开始」「工程验收」「压力测试」节） | `buildWithParameters` API 或 Jenkins 页面点构建（见「Jenkins 远程触发」节） |
-| 报告 | `reports/<suite>_<时间戳>/` | 远程机 `builds/<tester>/<model>/<构建号>/` + 邮件附件 |
+| 报告 | `reports/<suite>_<时间戳>/` | 远程机 `builds/<suite>/<tester>/<model>/<构建号>/` + 邮件附件 |
 
 > 两种方式最终调用的是**同一套测试代码**（Jenkins 经 `scripts/run_suite.sh` 透传参数调用同一个 `run_tests.py`），断言、阈值、判定、报告格式无任何差异。
 
@@ -174,7 +174,7 @@ python run_tests.py stress --base-url https://vendor/v1 --api-key sk-xxx --model
 | `SUITE=engineering` | 工程验收（pytest），参数：`ENG_FILTER`（-k 过滤）、`INCLUDE_HEAVY`、`OFFICIAL_*` |
 | `SUITE=stress` | 压力测试，参数：`STRESS_PHASE`、`AGREED_*`、`LOAD_THRESHOLD_TPM`、`PLATFORM_DURATION`（默认 86400=24h，与套件原始默认一致；短时验证显式填小）、`SPIKE_*`、`WINDOW_S`、`PROMPT_SCALE`、`RAMP_STAGES` |
 
-流水线执行（master → SSH 远程测试机）：打印参数 → API 连通性预检（失败即终止后续）→ 环境检查（清残留进程 / git pull 并**记录代码版本** / uv venv / engineering 数据文件检查）→ 按 SUITE 运行 → 报告拉取 → 邮件（**正文仅汇总统计 + 测试代码版本，报告 HTML 以原格式作为附件发送；git pull 失败时邮件醒目告警**）→ 保留最近 20 构建。报告输出在远程机 `builds/<tester>/<model>/<构建号>/`。
+流水线执行（master → SSH 远程测试机）：打印参数 → API 连通性预检（失败即终止后续）→ 环境检查（清残留进程 / git pull 并**记录代码版本** / uv venv / engineering 数据文件检查）→ 按 SUITE 运行 → 报告拉取 → 邮件（**正文仅汇总统计 + 测试代码版本，报告 HTML 以原格式作为附件发送；git pull 失败时邮件醒目告警**）→ 保留最近 20 构建。报告输出在远程机 `builds/<suite>/<tester>/<model>/<构建号>/`（engineering 与 stress 分目录）。
 
 ### Jenkins job 配置（一次性）
 

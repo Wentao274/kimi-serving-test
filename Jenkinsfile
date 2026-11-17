@@ -45,8 +45,8 @@ pipeline {
         SSH_CREDENTIALS = 'HOST_SSH_KEY'
         REMOTE_HOST = '10.201.132.50'
         REMOTE_USER = 'root'
-        // 报告输出分层：builds/<tester>/<model>/<build号>/（model 名做文件系统安全化）
-        BUILD_OUTPUT_DIR = "builds/${params.TESTER}/${params.MODEL.replaceAll('[^A-Za-z0-9._-]', '_')}/${BUILD_NUMBER}"
+        // 报告输出分层：builds/<suite>/<tester>/<model>/<build号>/（model 名做文件系统安全化）
+        BUILD_OUTPUT_DIR = "builds/${params.SUITE}/${params.TESTER}/${params.MODEL.replaceAll('[^A-Za-z0-9._-]', '_')}/${BUILD_NUMBER}"
         // BASE_URL 幂等拼接 /v1：先剥尾斜杠 → 再剥结尾 /v1（若有）→ 统一补 /v1
         BASE_URL_V1 = "${params.BASE_URL.replaceAll('/+$', '').replaceAll('/?v1$', '')}/v1"
     }
@@ -419,7 +419,7 @@ ${reportFile && fileExists(reportFile) ? '<p>详细测试报告（原始 HTML �
                 sshagent(credentials: ["${SSH_CREDENTIALS}"]) {
                     sh """
 ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${REMOTE_HOST} << 'ENDSSH'
-cd ${params.WORK_DIR}/builds/${params.TESTER} 2>/dev/null || exit 0
+cd ${params.WORK_DIR}/builds/${params.SUITE}/${params.TESTER} 2>/dev/null || exit 0
 # 目录层级 <model>/<build号>/：每个模型目录内只保留最近 20 个构建
 for MODEL_DIR in */ ; do
     if [ -d "\$MODEL_DIR" ]; then
