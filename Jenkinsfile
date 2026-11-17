@@ -49,14 +49,25 @@ pipeline {
         REMOTE_USER = 'root'
         // 报告输出分层：builds/<suite>/<tester>/<model>/<build号>/（model 名做文件系统安全化）
         BUILD_OUTPUT_DIR = "builds/${params.SUITE}/${params.TESTER}/${params.MODEL.replaceAll('[^A-Za-z0-9._-]', '_')}/${BUILD_NUMBER}"
-        // BASE_URL 幂等拼接 /v1：先剥尾斜杠 → 再剥结尾 /v1（若有）→ 统一补 /v1
-        BASE_URL_V1 = "${params.BASE_URL.replaceAll('/+$', '').replaceAll('/?v1$', '')}/v1"
+        // BASE_URL 版本感知归一化（见文件底部 normalizeBaseUrl）
+        BASE_URL_V1 = "${normalizeBaseUrl(params.BASE_URL)}"
     }
 
     stages {
         stage('打印测试参数') {
             steps {
                 script {
+                    // 参数防呆：-k 过滤必须是 pytest -k 表达式（用例名/编号与 and/or/not 组合），
+                    // 不接受自由文本（常见误填：把描述句子填进 FILTER）
+                    def validateKExpr = { String name, String val ->
+                        if (val?.trim() && !(val ==~ /^[A-Za-z0-9_\.\[\]"'\s\(\)\-]+$/)) {
+                            error("参数 ${name} 不是合法的 pytest -k 表达式: '${val}'。" +
+                                  "-k 按用例名过滤，示例: test_05、test_05 or test_12、not test_05。" +
+                                  "描述性文字请填 DESCRIPTION 参数；全量执行请留空。")
+                        }
+                    }
+                    validateKExpr('ENG_FILTER', params.ENG_FILTER)
+                    validateKExpr('COMPARE_FILTER', params.COMPARE_FILTER)
                     println("========================================")
                     println("=== K3.1 供应商验收测试参数 ===")
                     println("========================================")
@@ -145,19 +156,38 @@ set -e
 cd ${params.WORK_DIR}
 echo "工作目录: \$(pwd)"
 
-echo "=== 清理残留测试进程 ==="
-RESIDUAL=\$(pgrep -af "run_tests\\.py|run_suite\\.sh|run_stress" 2>/dev/null | grep -vE "jenkins|durable|@tmp" || true)
-if [ -n "\${RESIDUAL}" ]; then
-    echo "发现残留进程:"
-    echo "\${RESIDUAL}"
-    echo "\${RESIDUAL}" | awk '{print \$1}' | xargs -r kill -TERM 2>/dev/null || true
+echo "=== 清理残留测试进程（仅限本仓库 ${params.WORK_DIR}）==="
+# 唯一性筛选：进程名匹配后，必须再核对进程工作目录(/proc/<pid>/cwd)属于
+# 本仓库 WORK_DIR，避免误杀其他仓库同名脚本(run_tests.py/run_suite.sh)进程
+kill_repo_residual() {
+    FOUND=""
+    for PID in \$(pgrep -f "run_tests\\.py|run_suite\\.sh|run_stress" 2>/dev/null | grep -vE "jenkins|durable|@tmp" || true); do
+        PCWD=\$(readlink "/proc/\${PID}/cwd" 2>/dev/null || true)
+        case "\${PCWD}" in
+            ${params.WORK_DIR}|${params.WORK_DIR}/*)
+                FOUND="\${FOUND} \${PID}"
+                ;;
+            *)
+                [ -n "\${PCWD}" ] && echo "跳过非本仓库进程: pid=\${PID} cwd=\${PCWD}"
+                ;;
+        esac
+    done
+    if [ -n "\${FOUND}" ]; then
+        echo "本仓库残留进程:\${FOUND}"
+        echo "\${FOUND}" | xargs -r kill "\$1" 2>/dev/null || true
+        return 0
+    fi
+    return 1
+}
+if kill_repo_residual -TERM; then
     sleep 3
-    REMAINING=\$(pgrep -af "run_tests\\.py|run_suite\\.sh|run_stress" 2>/dev/null | grep -vE "jenkins|durable|@tmp" || true)
-    if [ -n "\${REMAINING}" ]; then
-        echo "未响应 SIGTERM,发送 SIGKILL..."
-        echo "\${REMAINING}" | awk '{print \$1}' | xargs -r kill -KILL 2>/dev/null || true
+    if kill_repo_residual -KILL; then
         sleep 1
     fi
+    echo "残留进程清理完成"
+else
+    echo "未发现本仓库残留进程"
+fi
     echo "残留进程清理完成"
 else
     echo "未发现残留进程"
@@ -167,8 +197,16 @@ echo "=== 同步代码 ==="
 mkdir -p ${BUILD_OUTPUT_DIR}
 BEFORE=\$(git rev-parse --short HEAD 2>/dev/null || echo unknown)
 echo "同步前代码: \${BEFORE}"
-SYNC_STATUS="ok"
-git pull --ff-only || SYNC_STATUS="failed"
+# TLS/网络抖动常见，重试 3 次后才认定同步失败
+SYNC_STATUS="failed"
+for i in 1 2 3; do
+    if git pull --ff-only; then
+        SYNC_STATUS="ok"
+        break
+    fi
+    echo "git pull 第 \${i} 次失败，5s 后重试..."
+    sleep 5
+done
 AFTER=\$(git rev-parse --short HEAD 2>/dev/null || echo unknown)
 echo "同步后代码: \${AFTER} (git pull: \${SYNC_STATUS})"
 {
@@ -254,7 +292,7 @@ ENDSSH"""
                         println("=== COMPARE_OFFICIAL 已启用但 OFFICIAL_* 未完整配置，跳过官方对比执行 ===")
                         return
                     }
-                    def officialBaseV1 = params.OFFICIAL_BASE_URL.replaceAll('/+$', '').replaceAll('/?v1$', '') + '/v1'
+                    def officialBaseV1 = normalizeBaseUrl(params.OFFICIAL_BASE_URL)
                     def officialKey = params.OFFICIAL_API_KEY.toString().trim()
                     def engFilter = (params.COMPARE_OFFICIAL && params.COMPARE_FILTER?.trim()) ? params.COMPARE_FILTER : params.ENG_FILTER
                     sshagent(credentials: ["${SSH_CREDENTIALS}"]) {
@@ -519,4 +557,15 @@ ENDSSH"""
             cleanWs()
         }
     }
+}
+
+// BASE_URL 版本感知归一化：已含版本路径（/v1、/v4 等，如智谱 https://open.bigmodel.cn/api/paas/v4）
+// 则保持；否则补 /v1；同时剥掉误填的 /chat/completions 后缀。
+// 注意：必须用 find() 做后缀匹配；matches() 要求全串匹配，会把 /v4 误判为无版本号
+def normalizeBaseUrl(String url) {
+    def u = (url ?: '').replaceAll('/+$', '').replaceAll('/chat/completions$', '')
+    if (!u) {
+        return u
+    }
+    return (u =~ /\/v\d+$/).find() ? u : (u + '/v1')
 }
