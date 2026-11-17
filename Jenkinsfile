@@ -161,7 +161,21 @@ else
 fi
 
 echo "=== 同步代码 ==="
-git pull --ff-only || echo "警告: git pull 失败，使用当前代码继续"
+mkdir -p ${BUILD_OUTPUT_DIR}
+BEFORE=\$(git rev-parse --short HEAD 2>/dev/null || echo unknown)
+echo "同步前代码: \${BEFORE}"
+SYNC_STATUS="ok"
+git pull --ff-only || SYNC_STATUS="failed"
+AFTER=\$(git rev-parse --short HEAD 2>/dev/null || echo unknown)
+echo "同步后代码: \${AFTER} (git pull: \${SYNC_STATUS})"
+{
+    echo "githash=\${AFTER}"
+    echo "gitbefore=\${BEFORE}"
+    echo "gitsync=\${SYNC_STATUS}"
+} > ${BUILD_OUTPUT_DIR}/code_version.properties
+if [ "\${SYNC_STATUS}" = "failed" ]; then
+    echo "警告: git pull 失败，本次将使用旧代码 \${AFTER} 继续测试（结果按旧代码口径）"
+fi
 
 echo "=== 检查并创建虚拟环境 ==="
 if [ ! -d ".venv" ]; then
@@ -306,6 +320,19 @@ fi
                             }
                         }
 
+                        // 测试代码版本（git pull 同步结果，环境检查阶段写入）
+                        def codeVer = [:]
+                        def codeVerFile = "reports/${BUILD_NUMBER}/code_version.properties"
+                        if (fileExists(codeVerFile)) {
+                            readFile(file: codeVerFile, encoding: 'UTF-8').split('\n').each { line ->
+                                def m = line.trim() =~ /^([A-Za-z]+)=(.*)$/
+                                if (m.matches()) {
+                                    codeVer[m.group(1)] = m.group(2)
+                                }
+                            }
+                        }
+                        def gitSyncFailed = (codeVer.gitsync == 'failed')
+
                         def reportFile = sh(script: "ls reports/${BUILD_NUMBER}/engineering_*/report.html reports/${BUILD_NUMBER}/stress_*/report.html 2>/dev/null | head -1", returnStdout: true).trim()
 
                         // 报告 HTML 以原格式作为附件发送，邮件正文只保留汇总统计（不内嵌报告，避免邮件客户端破坏样式）
@@ -348,6 +375,7 @@ ${fallbackStyle}
     <h2 style="margin: 0;">K3.1 供应商${suiteLabel}报告 - 构建 #${BUILD_NUMBER}</h2>
 </div>
 ${connectivityFailed ? '<div style="background-color: #d32f2f; color: white; padding: 12px 15px; border-radius: 4px; margin-bottom: 12px;"><strong>API 连通性预检未通过</strong>：本次构建未执行测试，请检查 BASE_URL / API_KEY，详见构建日志。</div>' : ''}
+${gitSyncFailed ? "<div style='background-color: #ff9800; color: white; padding: 12px 15px; border-radius: 4px; margin-bottom: 12px;'><strong>git pull 同步失败</strong>：本次测试基于旧代码 ${codeVer.githash} 执行（同步前 ${codeVer.gitbefore}），结果按旧代码口径，请知悉。</div>" : ''}
 <h2>Jenkins 构建信息</h2>
 <table>
     <tr><th>构建编号</th><td>#${BUILD_NUMBER}</td></tr>
@@ -355,7 +383,8 @@ ${connectivityFailed ? '<div style="background-color: #d32f2f; color: white; pad
     <tr><th>测试套件</th><td>${suiteLabel} (${params.SUITE})</td></tr>
     <tr><th>模型名称</th><td>${params.MODEL}</td></tr>
     <tr><th>API 地址</th><td>${params.BASE_URL}</td></tr>
-    <tr><th>服务描述</th><td>${params.DESCRIPTION ?: '(无)'}</td></tr>${suiteParamsRows}
+    <tr><th>服务描述</th><td>${params.DESCRIPTION ?: '(无)'}</td></tr>
+    <tr><th>测试代码版本</th><td>${codeVer.githash ?: 'N/A'}${codeVer.gitsync ? "（git pull: ${codeVer.gitsync}）" : ''}</td></tr>${suiteParamsRows}
     <tr><th>通过率</th><td>${rateLabel}</td></tr>
     <tr><th>测试结果</th><td style="color: ${bannerColor}; font-weight: bold;">${resultLabel}</td></tr>
     <tr><th>执行时间</th><td>${currentBuild.durationString}</td></tr>

@@ -7,7 +7,7 @@ Kimi model serving verify test — K3.1 流量外采供应商 Serving 验收测�
 ```
 ├── run_tests.py            # 主入口（分发各测试套件）
 ├── requirements.txt
-├── serving_requirements.md # K3.1 要求分析归纳与测试实现方案
+├── serving_requirements.md # K3.1 要求分析（内部资料，不入库，仅本地）
 ├── Jenkinsfile             # Jenkins 远程触发流水线（SUITE choice 分流，不改测试逻辑）
 ├── scripts/                # 触发层辅助（run_suite.sh 参数透传 / gen_stats.py 统计）
 ├── engineering/            # 工程验收（自研，条目对齐原始需求文档）
@@ -111,14 +111,14 @@ python run_tests.py engineering \
 
 ## 工程验收（engineering）覆盖项
 
-验收条目对齐《K3.1 流量外采要求》"K3.1 Test results → 一、工程验收"表格（截图 OCR 还原，详见 serving_requirements.md）。**模块编号与截图条目序号一一对应**；标 ⏸ 的条目暂未实现（待用例文件/规范文档），测试报告中以 **SKIPPED + 原因**显式占位标注，不会静默缺失：
+验收条目对齐《K3.1 流量外采要求》"K3.1 Test results → 一、工程验收"表格（截图 OCR 还原，详见本地文档 serving_requirements.md（内部资料，不入库））。**模块编号与截图条目序号一一对应**；标 ⏸ 的条目暂未实现（待用例文件/规范文档），测试报告中以 **SKIPPED + 原因**显式占位标注，不会静默缺失：
 
 | 模块 | 条目 | 验收点 |
 |---|---|---|
 | test_00_smoke_connectivity | （前置冒烟，非条目） | /models、最小 chat、错误 key、未知模型、128 字符工具名 |
 | test_01_thinking_mode | #1 | Thinking Mode Activation（anthropic style，默认 enabled，含 disabled/流式） |
 | test_02_param_defaults | #2 | 参数默认值与官方一致；非默认值必须 HTTP 4xx；logprobs 分布指纹对照 |
-| test_03_max_tokens_default | #3 | max_tokens 默认 131072、显式修改生效、heavy 全量验证 |
+| test_03_max_tokens_default | #3 | max_tokens 默认 131072、显式修改生效、heavy 计数序列上限验证（模型提前 stop 记无法判定、自动换措辞重试） |
 | test_04_no_system_prompt | #4 | 默认不添加 System Prompt（身份探针/泄露探针/官方对照） |
 | test_05_image_cases | #5 | 图片用例 25 条回放（native + flipped stream，千图上限）+ 7 种图片格式覆盖（jpeg/png/gif/tiff/bmp/webp/heic，本地生成 base64 小图） |
 | test_06_trace_id | #6 | traceparent 头受理 + trace 标识回传检查 |
@@ -126,15 +126,15 @@ python run_tests.py engineering \
 | test_08_provider_deploy_id | #8 | 响应头 X-Msh-ProviderDeployId 存在且非空（流式/非流式） |
 | test_09_streaming_output_spec ⏸ | #9 | Streaming Output Spec P0/P1：待规范文档；报告中以 SKIPPED+原因 占位标注 |
 | test_10_new_model_spec ⏸ | #10 | New Model Spec（K3.1 新功能）：待规范文档；报告中以 SKIPPED+原因 占位标注 |
-| test_11_thinking_effort | 补充（上线前#2） | effort low/high/max 三档、默认 max（问模型档位硬校验） |
-| test_12_openclaw_cases | 补充（上线前#7） | OpenClaw 用例 12 条回放（finish_reason=tool_calls） |
+| test_11_thinking_effort | 补充（上线前#2） | effort low/high/max 三档、默认 max（接受性 + reasoning_content 硬校验；模型自述档位为 soft，仅官方平台可靠） |
+| test_12_openclaw_cases | 补充（上线前#7） | OpenClaw 用例 12 条回放（finish_reason=tool_calls；stream=false 时自动剥离 stream_options 并标注） |
 | test_13_preserve_thinking | 补充（上线前#9） | Preserve thinking 锚点验证：prompt_tokens=160 + 5 数字完全一致；不传 keep 对照（soft） |
 
 ### 常用选项
 
 ```
 --timeout 600             单请求读超时（秒）
---include-heavy           运行重负载用例（#3 全量 131072 生成、#5 千图 flipped 等）
+--include-heavy           运行重负载用例（#3 计数序列上限验证、#5 千图 flipped 等）
 --official-base-url/--official-api-key/--official-model   #5 官方基线对照（可选）
 --report-dir DIR          报告输出目录（默认 reports/）
 ```
@@ -161,6 +161,7 @@ python run_tests.py stress --base-url https://vendor/v1 --api-key sk-xxx --model
 - 阶段：`baseline`(P0 各档 uncached 探针) → `ramp`(P1 爬坡) → `platform`(P2 约定并发 24h+判定) → `spike`(P3 超量脉冲验证立即 429)；`full` 全流程
 - 产出：`reports/stress_<时间戳>/`：`report.html`（判定矩阵/窗口明细/曲线/质量事故）、`summary.json`、`windows.json`（窗口快照，长跑中断不丢）、`metrics.jsonl`（逐请求指标，无原始请求/响应，闭源合规）、`quality_incidents.json`
 - 判定：容量无 >10min 塌陷 / TTFT 分档窗口达标 / OTPS 超标 ≤1% / 失败率 <1%（TPM 阈值内外口径）/ 429 时延 P90 ≤5s / 质量四项零事故；判定失败退出码非 0
+- 注：质量判定还包含辅助观察信号 `claw_unexpected`（claw 场景 finish≠tool_calls 的行为波动），当前与文档四项一并计入质量判定；文档要求的四项（字符重复/工具调用重复/串台/无意义输出）可在报告 `quality_by_kind` 分布中单独查看
 - RTO 演练（P4）需供应商配合摘流，以 platform 窗口失败率曲线人工对照（高峰 ≤10min / 低峰 ≤60min）
 - demo 验证：`--window-s 10 --prompt-scale 0.001 --platform-duration 20 --spike-duration 6 --ramp-stages "warm:5:4,climb:5:8"`
 
@@ -173,7 +174,7 @@ python run_tests.py stress --base-url https://vendor/v1 --api-key sk-xxx --model
 | `SUITE=engineering` | 工程验收（pytest），参数：`ENG_FILTER`（-k 过滤）、`INCLUDE_HEAVY`、`OFFICIAL_*` |
 | `SUITE=stress` | 压力测试，参数：`STRESS_PHASE`、`AGREED_*`、`LOAD_THRESHOLD_TPM`、`PLATFORM_DURATION`（默认 86400=24h，与套件原始默认一致；短时验证显式填小）、`SPIKE_*`、`WINDOW_S`、`PROMPT_SCALE`、`RAMP_STAGES` |
 
-流水线执行（master → SSH 远程测试机）：打印参数 → API 连通性预检（失败即终止后续）→ 环境检查（清残留进程 / git pull / uv venv / engineering 数据文件检查）→ 按 SUITE 运行 → 报告拉取 → 邮件（**正文仅汇总统计，报告 HTML 以原格式作为附件发送**）→ 保留最近 20 构建。报告输出在远程机 `builds/<tester>/<model>/<构建号>/`。
+流水线执行（master → SSH 远程测试机）：打印参数 → API 连通性预检（失败即终止后续）→ 环境检查（清残留进程 / git pull 并**记录代码版本** / uv venv / engineering 数据文件检查）→ 按 SUITE 运行 → 报告拉取 → 邮件（**正文仅汇总统计 + 测试代码版本，报告 HTML 以原格式作为附件发送；git pull 失败时邮件醒目告警**）→ 保留最近 20 构建。报告输出在远程机 `builds/<tester>/<model>/<构建号>/`。
 
 ### Jenkins job 配置（一次性）
 

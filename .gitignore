@@ -235,5 +235,8 @@ test_outputs/
 engineering/data/
 test-resource/
 
+# 需求分析与测试方案文档（内部资料，仅保留在本地）
+serving_requirements.md
+
 # 本地 IDE 配置（非测试输出，防止误提交）
 .idea/
