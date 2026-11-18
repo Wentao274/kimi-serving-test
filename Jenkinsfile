@@ -17,7 +17,8 @@ pipeline {
 
         // ---------------- 工程验收（SUITE=engineering 时生效） ----------------
         string(name: 'ENG_FILTER', defaultValue: '', description: '工程验收：pytest -k 过滤表达式（空=全量），如 "test_05 or test_12"、"test_01"')
-        booleanParam(name: 'INCLUDE_HEAVY', defaultValue: false, description: '工程验收：运行重负载用例（#3 全量 131072 生成约70分钟、#5 千图 flipped）')
+        booleanParam(name: 'VENDOR_INCLUDE_HEAVY', defaultValue: false, description: '供应商侧：运行重负载用例（#3 全量 131072 生成约70分钟、#5 千图 flipped）')
+        booleanParam(name: 'OFFICIAL_INCLUDE_HEAVY', defaultValue: false, description: '官方侧：运行重负载用例（不开启则官方侧 heavy 用例标记为 SKIPPED 跳过）')
         string(name: 'OFFICIAL_BASE_URL', defaultValue: '', description: '工程验收（可选）：官方 API 根地址，用于 #4 System Prompt 官方基线对照及 COMPARE_OFFICIAL 双跑')
         password(name: 'OFFICIAL_API_KEY', defaultValue: '', description: '工程验收（可选）：官方 API Key')
         string(name: 'OFFICIAL_MODEL', defaultValue: '', description: '工程验收（可选）：官方模型名')
@@ -77,7 +78,8 @@ pipeline {
                     println("BASE_URL:     ${params.BASE_URL}  (→ ${env.BASE_URL_V1})")
                     if (params.SUITE == 'engineering') {
                         println("用例过滤:     ${params.ENG_FILTER ?: '(全量)'}")
-                        println("重负载用例:   ${params.INCLUDE_HEAVY}")
+                        println("供应商重负载: ${params.VENDOR_INCLUDE_HEAVY}")
+                        println("官方重负载:   ${params.OFFICIAL_INCLUDE_HEAVY}")
                         println("官方对照:     ${params.OFFICIAL_BASE_URL ? params.OFFICIAL_BASE_URL : '(不启用)'}")
                         println("官方双跑对比: ${params.COMPARE_OFFICIAL ? "开启（范围: ${params.COMPARE_FILTER ?: '(全量)'}）" : '关闭'}")
                     } else {
@@ -269,7 +271,7 @@ export KST_API_KEY="${apiKey}"
 export KST_MODEL="${params.MODEL}"
 export KST_OUT_DIR="${params.WORK_DIR}/${BUILD_OUTPUT_DIR}"
 export ENG_FILTER="${engFilter}"
-export ENG_INCLUDE_HEAVY="${params.INCLUDE_HEAVY}"
+export ENG_INCLUDE_HEAVY="${params.VENDOR_INCLUDE_HEAVY}"
 export OFFICIAL_BASE_URL="${params.OFFICIAL_BASE_URL}"
 export OFFICIAL_API_KEY="${officialKey}"
 export OFFICIAL_MODEL="${params.OFFICIAL_MODEL}"
@@ -309,7 +311,7 @@ export KST_API_KEY="${officialKey}"
 export KST_MODEL="${params.OFFICIAL_MODEL}"
 export KST_OUT_DIR="${params.WORK_DIR}/${BUILD_OUTPUT_DIR}/official"
 export ENG_FILTER="${engFilter}"
-export ENG_INCLUDE_HEAVY="${params.INCLUDE_HEAVY}"
+export ENG_INCLUDE_HEAVY="${params.OFFICIAL_INCLUDE_HEAVY}"
 
 RC=0
 bash scripts/run_suite.sh || RC=\$?
@@ -460,7 +462,7 @@ fi
                         if (params.SUITE == 'engineering') {
                             suiteParamsRows = """
     <tr><th>用例过滤</th><td>${params.ENG_FILTER ?: '(全量)'}</td></tr>
-    <tr><th>重负载用例</th><td>${params.INCLUDE_HEAVY}</td></tr>
+    <tr><th>重负载用例</th><td>供应商: ${params.VENDOR_INCLUDE_HEAVY} / 官方: ${params.OFFICIAL_INCLUDE_HEAVY}</td></tr>
     <tr><th>用例总数</th><td>${stats.total ?: 'N/A'}</td></tr>
     <tr><th>通过 / 失败</th><td>${stats.passed ?: 'N/A'} / ${stats.failed ?: 'N/A'}</td></tr>
     <tr><th>跳过 / 错误</th><td>${stats.skipped ?: 'N/A'} / ${stats.errors ?: 'N/A'}</td></tr>"""

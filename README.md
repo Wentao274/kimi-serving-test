@@ -137,6 +137,8 @@ python run_tests.py engineering \
 ```
 --timeout 600             单请求读超时（秒）
 --include-heavy           运行重负载用例（#3 计数序列上限验证、#5 千图 flipped 等）
+                          （Jenkins 拆分为 VENDOR_INCLUDE_HEAVY / OFFICIAL_INCLUDE_HEAVY 双侧独立开关，
+                            官方侧不开启时其 heavy 用例标记为 SKIPPED 跳过）
 --official-base-url/--official-api-key/--official-model   #5 官方基线对照（可选）
 --report-dir DIR          报告输出目录（默认 reports/）
 ```
