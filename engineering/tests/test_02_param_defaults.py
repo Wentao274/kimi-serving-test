@@ -127,8 +127,9 @@ def test_02_default_equivalence_logprobs(client, rec, thinking_enabled):
     lp_implicit = _extract_top_logprobs(res_implicit)
     lp_explicit = _extract_top_logprobs(res_explicit)
     if lp_implicit is None or lp_explicit is None:
-        rec.check("端点返回 logprobs", False, "响应中无 logprobs 字段", soft=True)
-        pytest.skip("端点不支持 logprobs，无法做分布指纹对照")
+        rec.check("供应商端点返回 logprobs", False,
+                  f"供应商({client.model}) 响应中无 logprobs 字段", soft=True)
+        pytest.skip(f"供应商({client.model}) 不支持 logprobs，无法做分布指纹对照")
 
     rec.extra[f"{mode_name}_implicit_top_logprobs"] = lp_implicit
     rec.extra[f"{mode_name}_explicit_top_logprobs"] = lp_explicit

@@ -38,8 +38,8 @@ table.sum th, table.sum td { border: 1px solid #d8dfeb; padding: 6px 14px; text-
 table.sum th { background: #e3edfc; color: #1e3a8a; }
 .lane-hd { display: flex; gap: 12px; font-size: 13px; font-weight: 700; color: #374151; padding: 10px 0 4px; }
 .lane-hd span { flex: 1; }
-.case { display: flex; gap: 12px; align-items: flex-start; margin-bottom: 10px; }
-.lane { flex: 1; min-width: 0; background: #fff; border-radius: 8px; box-shadow: 0 1px 2px rgba(0,0,0,.06); overflow: hidden; }
+.case { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; align-items: start; margin-bottom: 10px; }
+.lane { min-width: 0; background: #fff; border-radius: 8px; box-shadow: 0 1px 2px rgba(0,0,0,.06); overflow: hidden; }
 .lane .head { display: flex; align-items: center; gap: 8px; padding: 8px 12px; cursor: pointer; }
 .lane .head:hover { background: #f9fafb; }
 .badge { display: inline-block; min-width: 52px; text-align: center; font-size: 11px; font-weight: 700; color: #fff; border-radius: 4px; padding: 2px 6px; flex-shrink: 0; }
@@ -49,7 +49,7 @@ table.sum th { background: #e3edfc; color: #1e3a8a; }
 .ttl { font-size: 12px; font-weight: 600; flex: 1; word-break: break-all; }
 .time { font-size: 11px; color: #6b7280; white-space: nowrap; }
 .body { display: none; border-top: 1px solid #e5e7eb; padding: 8px 12px; }
-.lane.open .body { display: block; }
+.case.open .body { display: block; }
 .kv { font-size: 11px; color: #4b5563; margin-bottom: 6px; }
 .kv b { color: #111827; }
 table.assertions { width: 100%; border-collapse: collapse; margin: 6px 0 8px; font-size: 11px; }
@@ -78,7 +78,7 @@ function _filter(mode, btn) {
     c.style.display = (mode === 'all' || c.classList.contains('mismatch')) ? '' : 'none';
   });
 }
-function toggleLane(el) { el.closest('.lane').classList.toggle('open'); }
+function toggleCase(el) { el.closest('.case').classList.toggle('open'); }
 """
 
 
@@ -143,7 +143,7 @@ def _render_lane(rec: dict | None, side: str, status: str) -> str:
 
     parts = [
         f"<div class='lane {side}'>",
-        f"<div class='head' onclick='toggleLane(this)'>",
+        f"<div class='head' onclick='toggleCase(this)'>",
         f"<span class='badge {outcome}'>{outcome.upper()}</span>",
         f"<span class='ttl'>{_esc(rec.get('title') or rec.get('case_id'))}</span>",
         f"<span class='time'>{_esc(' | '.join(bits))}</span>",
