@@ -54,15 +54,110 @@ def _fmt_num(v: Any) -> str:
     return f"{v:,}"
 
 
-def _svg_line(points: list[float], width: int, height: int, color: str) -> str:
-    if not points:
-        return ""
-    vmax = max(points) or 1.0
-    step = width / max(len(points) - 1, 1)
-    pts = " ".join(f"{i * step:.1f},{height - (v / vmax) * (height - 4) - 2:.1f}"
-                   for i, v in enumerate(points))
-    return (f"<svg width='{width}' height='{height}' style='background:#fafafa'>"
-            f"<polyline points='{pts}' fill='none' stroke='{color}' stroke-width='1.5'/></svg>")
+def _fmt_axis(v: float) -> str:
+    """坐标轴刻度值缩写：1.2k / 3.4M。"""
+    if v >= 1_000_000:
+        return f"{v / 1_000_000:g}M"
+    if v >= 1_000:
+        return f"{v / 1_000:g}k"
+    return f"{v:g}"
+
+
+def _nice_max(v: float) -> float:
+    """把 Y 轴上限取整到 1/2/2.5/5/10 × 10^n 的整齐刻度（含 5% 头部余量）。"""
+    import math
+    v = v * 1.05
+    if v <= 0:
+        return 1.0
+    base = 10 ** math.floor(math.log10(v))
+    for m in (1, 2, 2.5, 5, 10):
+        if v <= m * base:
+            return m * base
+    return 10 * base
+
+
+def _svg_chart(windows: list[dict], key: str, color: str, unit: str,
+               window_s: int, width: int = 960, height: int = 280,
+               ref: tuple[float, str] | None = None) -> str:
+    """带横纵坐标轴、刻度数值与单位的容量曲线。
+
+    - X 轴：窗口起始时间（每窗口 window_s 秒），按主导阶段变化画竖直分界；
+    - Y 轴：指标值（带单位与网格线），标注峰值/谷值；
+    - ref: (数值, 标签) 红色虚线参考线（如约定 TPM）。
+    """
+    pts = [w[key] for w in windows]
+    if not pts:
+        return "<p>无窗口数据。</p>"
+    labels = [w["start"] for w in windows]
+    phases = []
+    for w in windows:
+        pc = w.get("phase_counts") or {}
+        phases.append(max(pc, key=pc.get) if pc else "")
+    ml, mr, mt, mb = 64, 16, 24, 42          # 四边留白（左刻度/下时间轴）
+    pw, ph = width - ml - mr, height - mt - mb
+    n = len(pts)
+    vmax = _nice_max(max([max(pts)] + ([ref[0]] if ref else [])))
+
+    def X(i: int) -> float:
+        return ml + pw * i / max(n - 1, 1)
+
+    def Y(v: float) -> float:
+        return mt + ph - (v / vmax) * ph
+
+    p = [f"<svg width='{width}' height='{height}' style='background:#fff'>"]
+    # Y 轴网格 + 刻度值
+    for i in range(6):
+        v = vmax * i / 5
+        y = Y(v)
+        p.append(f"<line x1='{ml}' y1='{y:.1f}' x2='{width - mr}' y2='{y:.1f}' "
+                 f"stroke='#e5e7eb' stroke-width='1'/>")
+        p.append(f"<text x='{ml - 8}' y='{y + 4:.1f}' text-anchor='end' "
+                 f"font-size='11' fill='#6b7280'>{_fmt_axis(round(v))}</text>")
+    # Y 轴单位
+    p.append(f"<text x='{ml - 8}' y='{mt - 8}' text-anchor='end' font-size='11' "
+             f"fill='#374151' font-weight='600'>{_esc(unit)}</text>")
+    # X 轴刻度（最多 12 个时间标签）
+    step = max(1, -(-n // 12))
+    for i in range(0, n, step):
+        p.append(f"<text x='{X(i):.1f}' y='{height - mb + 16}' text-anchor='middle' "
+                 f"font-size='10' fill='#6b7280'>{_esc(labels[i])}</text>")
+    p.append(f"<text x='{(ml + width - mr) / 2:.1f}' y='{height - 8}' text-anchor='middle' "
+             f"font-size='11' fill='#374151'>窗口起始时间（每窗口 {window_s}s）</text>")
+    # 阶段分界竖线
+    for i in range(1, n):
+        if phases[i] != phases[i - 1]:
+            x = X(i) - pw / max(n - 1, 1) / 2
+            p.append(f"<line x1='{x:.1f}' y1='{mt}' x2='{x:.1f}' y2='{mt + ph}' "
+                     f"stroke='#d1d5db' stroke-dasharray='3,3'/>")
+            p.append(f"<text x='{x + 3:.1f}' y='{mt + 10}' font-size='10' "
+                     f"fill='#9ca3af'>{_esc(phases[i])}</text>")
+    # 参考线（如约定 TPM）
+    if ref:
+        rv, rl = ref
+        y = Y(rv)
+        p.append(f"<line x1='{ml}' y1='{y:.1f}' x2='{width - mr}' y2='{y:.1f}' "
+                 f"stroke='#dc2626' stroke-dasharray='5,4' stroke-width='1.2'/>")
+        p.append(f"<text x='{width - mr - 4}' y='{y - 5:.1f}' text-anchor='end' "
+                 f"font-size='11' fill='#dc2626'>{_esc(rl)}: {_fmt_axis(rv)}</text>")
+    # 数据曲线
+    poly = " ".join(f"{X(i):.1f},{Y(v):.1f}" for i, v in enumerate(pts))
+    p.append(f"<polyline points='{poly}' fill='none' stroke='{color}' stroke-width='1.8'/>")
+    # 峰值/谷值标注
+    imax = max(range(n), key=lambda i: pts[i])
+    imin = min(range(n), key=lambda i: pts[i])
+    for idx, name, c in ((imax, "峰值", "#16a34a"), (imin, "谷值", "#dc2626")):
+        if idx == imax or n > 1:
+            x, y = X(idx), Y(pts[idx])
+            anchor = "start" if x < width - 130 else "end"
+            dy = -7 if y > mt + 16 else 14
+            p.append(f"<circle cx='{x:.1f}' cy='{y:.1f}' r='3' fill='{c}'/>")
+            p.append(f"<text x='{x:.1f}' y='{y + dy:.1f}' text-anchor='{anchor}' "
+                     f"font-size='10' fill='{c}'>{name} {_fmt_axis(pts[idx])}</text>")
+    # 坐标轴
+    p.append(f"<line x1='{ml}' y1='{mt}' x2='{ml}' y2='{mt + ph}' stroke='#9ca3af'/>")
+    p.append(f"<line x1='{ml}' y1='{mt + ph}' x2='{width - mr}' y2='{mt + ph}' stroke='#9ca3af'/>")
+    p.append("</svg>")
+    return "".join(p)
 
 
 def render_html(cfg, results: dict, run_name: str) -> str:
@@ -149,12 +244,12 @@ def render_html(cfg, results: dict, run_name: str) -> str:
     else:
         incidents_table = "<p>无质量事故。</p>"
 
-    # 曲线
-    rpm_series = [w["rpm"] for w in windows]
-    tpm_series = [w["tpm"] for w in windows]
-    charts = (
-        f"<div class='chart'><b>RPM</b><br>{_svg_line(rpm_series, 640, 80, '#2563eb')}</div>"
-        f"<div class='chart'><b>TPM</b><br>{_svg_line(tpm_series, 640, 80, '#7c3aed')}</div>")
+    # 曲线（带坐标轴/刻度/单位；TPM 叠加约定值参考线）
+    rpm_chart = _svg_chart(windows, "rpm", "#2563eb", "RPM", cfg.window_s)
+    tpm_chart = _svg_chart(windows, "tpm", "#7c3aed", "TPM", cfg.window_s,
+                           ref=(cfg.agreed_tpm, "约定TPM"))
+    charts = (f"<div class='chart'><b>RPM（请求/分钟）</b><br>{rpm_chart}</div>"
+              f"<div class='chart'><b>TPM（tokens/分钟）</b><br>{tpm_chart}</div>")
 
     meta = {
         "模型": cfg.model, "Endpoint": cfg.base_url, "运行": run_name,
@@ -173,7 +268,7 @@ def render_html(cfg, results: dict, run_name: str) -> str:
   <div class="summary">{stat_cards}</div>
   <h2>判定矩阵（合同/压测条款口径）</h2>{matrix}
   <h2>P0 基线（各 TTFT 档位 uncached 探针）</h2>{baseline}
-  <h2>窗口明细（10 分钟窗口）</h2>{windows_table}
+  <h2>窗口明细（{cfg.window_s}s 窗口）</h2>{windows_table}
   <h2>容量曲线</h2>{charts}
   <h2>质量事故（四项检测）</h2>{incidents_table}
 </div>
