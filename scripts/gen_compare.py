@@ -38,7 +38,7 @@ table.sum th, table.sum td { border: 1px solid #d8dfeb; padding: 6px 14px; text-
 table.sum th { background: #e3edfc; color: #1e3a8a; }
 .lane-hd { display: flex; gap: 12px; font-size: 13px; font-weight: 700; color: #374151; padding: 10px 0 4px; }
 .lane-hd span { flex: 1; }
-.case { display: flex; gap: 12px; align-items: stretch; margin-bottom: 10px; }
+.case { display: flex; gap: 12px; align-items: flex-start; margin-bottom: 10px; }
 .lane { flex: 1; min-width: 0; background: #fff; border-radius: 8px; box-shadow: 0 1px 2px rgba(0,0,0,.06); overflow: hidden; }
 .lane .head { display: flex; align-items: center; gap: 8px; padding: 8px 12px; cursor: pointer; }
 .lane .head:hover { background: #f9fafb; }
@@ -160,6 +160,10 @@ def _render_lane(rec: dict | None, side: str, status: str) -> str:
         parts.append(f"<details open><summary>{label}</summary><pre class='error'>{_esc(_pretty(rec['error']))}</pre></details>")
     if rec.get("extra"):
         parts.append(f"<details><summary>附加信息</summary><pre>{_esc(_pretty(rec['extra']))}</pre></details>")
+    # 复现命令 (curl)：与单侧报告一致，左右两栏各自展示
+    curl_cmd = (rec.get("request") or {}).get("curl") if isinstance(rec.get("request"), dict) else None
+    if curl_cmd:
+        parts.append(f"<details><summary>复现命令 (curl)</summary><pre>{_esc(curl_cmd)}</pre></details>")
     if rec.get("request") is not None:
         parts.append(f"<details><summary>请求 (Request)</summary><pre>{_esc(_pretty(rec['request']))}</pre></details>")
     if rec.get("response") is not None:
