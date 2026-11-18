@@ -106,8 +106,10 @@ python run_tests.py engineering \
 ```
 
 运行后报告自动生成于 `reports/engineering_<时间戳>/`：
-- `report.html` — 单文件 HTML 报告（汇总 + 每个用例的请求/响应/断言/curl 复现命令，可过滤/搜索）
+- `<model>_report_<时间戳>.html`（如 `kimi-k3.1_report_20261118102035.html`）— 单文件 HTML 报告（汇总 + 每个用例的请求/响应/断言/curl 复现命令，可过滤/搜索）
 - `report_data.json` — 全量结构化数据（HTML 中超长字段的完整内容在此）
+
+**官方双跑对比报告**：开启 `COMPARE_OFFICIAL` 后，`scripts/gen_compare.py` 生成 `<model>_compare_<时间戳>.html`——左右双通道布局（左栏供应商用例状态/请求响应详情，右栏官方同例详情），顶部含「供应商 vs 官方 对比汇总」统计，支持"仅看不一致"过滤。
 
 ## 工程验收（engineering）覆盖项
 

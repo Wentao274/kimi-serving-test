@@ -442,10 +442,10 @@ fi
     <tr><th>仅官方失败</th><td colspan="2">${cmp.officialonlyfail}</td></tr>
     <tr><th>双边均失败</th><td colspan="2">${cmp.bothfail}</td></tr>
 </table>
-<p>逐用例对比见附件 <strong>compare.html</strong>；两侧完整报告见附件（供应商 report.html / 官方 report.html）。</p>"""
+<p>逐用例对比见附件 <strong>*_compare_*.html</strong>；两侧完整报告见附件（供应商 对比报告 *_compare_*.html）。</p>"""
                         }
 
-                        def reportFile = sh(script: "ls reports/${BUILD_NUMBER}/engineering_*/report.html reports/${BUILD_NUMBER}/stress_*/report.html 2>/dev/null | head -1", returnStdout: true).trim()
+                        def reportFile = sh(script: "ls reports/${BUILD_NUMBER}/engineering_*/*_report_*.html reports/${BUILD_NUMBER}/stress_*/*_report_*.html 2>/dev/null | head -1", returnStdout: true).trim()
 
                         // 报告 HTML 以原格式作为附件发送，邮件正文只保留汇总统计（不内嵌报告，避免邮件客户端破坏样式）
                         def fallbackStyle = "body { font-family: 'Segoe UI', 'Microsoft YaHei', Arial, sans-serif; margin: 0 auto; max-width: 1080px; padding: 20px 32px; color: #1f2937; background: #eef1f6; font-size: 14px; line-height: 1.7; }\ntable { border-collapse: collapse; width: 100%; margin: 14px 0 18px; background: #ffffff; font-size: 13px; border: 1px solid #d8dfeb; }\nth { background: #e3edfc; color: #1e3a8a; font-weight: 600; }\nth, td { border: 1px solid #d8dfeb; padding: 6px 12px; text-align: left; vertical-align: top; }\n.email-footer { margin-top: 24px; padding: 12px 15px; background-color: #f9f9f9; border-radius: 3px; color: #666; font-size: 12px; }"
@@ -503,7 +503,7 @@ ${gitSyncFailed ? "<div style='background-color: #ff9800; color: white; padding:
     <tr><th>构建状态</th><td>${currentBuild.currentResult}</td></tr>
 </table>
 ${compareSection}
-${reportFile && fileExists(reportFile) ? '<p>详细测试报告（原始 HTML 格式）请查看邮件附件 <strong>report.html</strong>。</p>' : '<p>未能生成 HTML 测试报告，请查看构建日志。</p>'}
+${reportFile && fileExists(reportFile) ? '<p>详细测试报告（原始 HTML 格式，&lt;model&gt;_report_&lt;时间戳&gt;.html）请查看邮件附件。</p>' : '<p>未能生成 HTML 测试报告，请查看构建日志。</p>'}
 <p>Jenkins 构建地址: <a href="${env.BUILD_URL}">${env.BUILD_URL}</a></p>
 <div class="email-footer">此邮件由 Jenkins 自动发送，请勿回复。</div>
 </body>
@@ -511,14 +511,14 @@ ${reportFile && fileExists(reportFile) ? '<p>详细测试报告（原始 HTML �
 
                         def attachPatterns = []
                         if (reportFile && fileExists(reportFile)) {
-                            attachPatterns.add("reports/${BUILD_NUMBER}/engineering_*/report.html")
-                            attachPatterns.add("reports/${BUILD_NUMBER}/stress_*/report.html")
+                            attachPatterns.add("reports/${BUILD_NUMBER}/engineering_*/*_report_*.html")
+                            attachPatterns.add("reports/${BUILD_NUMBER}/stress_*/*_report_*.html")
                         }
-                        if (fileExists("reports/${BUILD_NUMBER}/official/engineering_*/report.html")) {
-                            attachPatterns.add("reports/${BUILD_NUMBER}/official/engineering_*/report.html")
+                        if (fileExists("reports/${BUILD_NUMBER}/official/engineering_*/*_report_*.html")) {
+                            attachPatterns.add("reports/${BUILD_NUMBER}/official/engineering_*/*_report_*.html")
                         }
-                        if (fileExists("reports/${BUILD_NUMBER}/compare.html")) {
-                            attachPatterns.add("reports/${BUILD_NUMBER}/compare.html")
+                        if (fileExists("reports/${BUILD_NUMBER}/*_compare_*.html")) {
+                            attachPatterns.add("reports/${BUILD_NUMBER}/*_compare_*.html")
                         }
 
                         emailext(
