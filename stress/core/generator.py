@@ -18,7 +18,7 @@ from .async_client import AsyncVendorClient, RequestOutcome
 from .config import StressConfig
 from .metrics import Aggregator, Judgment, RequestMetric
 from .quality import (CanaryRegistry, QualityIncident, check_char_repetition,
-                      check_claw_finish, check_nonsense, check_toolcall_repetition)
+                      check_nonsense, check_toolcall_repetition)
 from .scenarios import TrafficBuilder
 from .contract import TIER_NAMES
 
@@ -77,7 +77,9 @@ class StressEngine:
         if m.uncached_tokens is not None:
             self._tpm_window.append((m.ts, m.uncached_tokens + (m.completion_tokens or 0)))
 
-    def _quality_check(self, session_id: str, scenario: str, outcome: RequestOutcome) -> list[str]:
+    def _quality_check(self, session_id: str, outcome: RequestOutcome) -> list[str]:
+        """需求文档压测条款质量四项检测（finish_reason 不作质量判据，
+        其分布保留在 metrics.jsonl 供离线分析）。"""
         flags = []
         detail = check_char_repetition(outcome.text)
         if detail:
@@ -100,17 +102,12 @@ class StressEngine:
             flags.append("nonsense")
             self.aggregator.add_incident(QualityIncident("nonsense", session_id,
                                                          outcome.started_ts, detail))
-        detail = check_claw_finish(scenario, outcome.finish_reason)
-        if detail:
-            flags.append("claw_unexpected")
-            self.aggregator.add_incident(QualityIncident("claw_unexpected", session_id,
-                                                         outcome.started_ts, detail))
         return flags
 
     async def _fire(self, session_id: str, scenario: str, tier: str,
                     payload: dict, phase: str) -> None:
         outcome = await self.client.stream_chat(payload)
-        flags = self._quality_check(session_id, scenario, outcome)
+        flags = self._quality_check(session_id, outcome)
         m = RequestMetric(
             ts=outcome.started_ts, phase=phase, session_id=session_id,
             scenario=scenario, tier=tier, status=outcome.status,

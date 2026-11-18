@@ -12,7 +12,7 @@ from dataclasses import dataclass, field
 
 @dataclass
 class QualityIncident:
-    kind: str                # char_repetition / toolcall_repetition / crosstalk / nonsense / claw_unexpected
+    kind: str                # char_repetition / toolcall_repetition / crosstalk / nonsense
     session_id: str
     ts: float
     detail: str
@@ -67,11 +67,4 @@ def check_nonsense(finish_reason: str | None, text: str, n_tool_calls: int) -> s
     """无意义输出（轻量规则）：finish=stop 但正文与 tool_calls 均为空。"""
     if finish_reason == "stop" and not text.strip() and n_tool_calls == 0:
         return "finish=stop 但输出为空"
-    return None
-
-
-def check_claw_finish(scenario: str, finish_reason: str | None) -> str | None:
-    """claw 场景期望以 tool_calls 结束（比例高，作质量信号而非硬判）。"""
-    if scenario.endswith("claw") and finish_reason not in (None, "tool_calls"):
-        return f"{scenario} 场景 finish={finish_reason}（期望 tool_calls）"
     return None

@@ -163,7 +163,7 @@ python run_tests.py stress --base-url https://vendor/v1 --api-key sk-xxx --model
 - 阶段：`baseline`(P0 各档 uncached 探针) → `ramp`(P1 爬坡) → `platform`(P2 约定并发 24h+判定) → `spike`(P3 超量脉冲验证立即 429)；`full` 全流程
 - 产出：`reports/stress_<时间戳>/`：`report.html`（判定矩阵/窗口明细/曲线/质量事故）、`summary.json`、`windows.json`（窗口快照，长跑中断不丢）、`metrics.jsonl`（逐请求指标，无原始请求/响应，闭源合规）、`quality_incidents.json`
 - 判定：容量无 >10min 塌陷 / TTFT 分档窗口达标 / OTPS 超标 ≤1% / 失败率 <1%（TPM 阈值内外口径）/ 429 时延 P90 ≤5s / 质量四项零事故；判定失败退出码非 0
-- 注：质量判定还包含辅助观察信号 `claw_unexpected`（claw 场景 finish≠tool_calls 的行为波动），当前与文档四项一并计入质量判定；文档要求的四项（字符重复/工具调用重复/串台/无意义输出）可在报告 `quality_by_kind` 分布中单独查看
+- 注：质量判定严格对应文档四项（字符重复/工具调用重复/串台/无意义输出）；claw 场景的 finish_reason 不作质量判据（工程验收 `test_12_openclaw_cases` 已专项覆盖 finish=tool_calls 校验），各请求 finish_reason 分布保留在 `metrics.jsonl` 供离线分析
 - RTO 演练（P4）需供应商配合摘流，以 platform 窗口失败率曲线人工对照（高峰 ≤10min / 低峰 ≤60min）
 - demo 验证：`--window-s 10 --prompt-scale 0.001 --platform-duration 20 --spike-duration 6 --ramp-stages "warm:5:4,climb:5:8"`
 
