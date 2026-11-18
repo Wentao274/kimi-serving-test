@@ -224,6 +224,8 @@ __marimo__/
 # （含 report.html / report_data.json / windows.json / metrics.jsonl /
 #   summary.json / quality_incidents.json 等全部运行产物）
 reports/
+# Jenkins 构建输出根目录 builds/<suite>/<tester>/<model>/<构建号>/
+builds/
 # 其他常见测试输出位置（自定义 --report-dir 或本地运行产物）
 test-results/
 test_outputs/
