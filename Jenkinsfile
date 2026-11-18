@@ -509,17 +509,15 @@ ${reportFile && fileExists(reportFile) ? '<p>详细测试报告（原始 HTML �
 </body>
 </html>"""
 
+                        // 注意：attachmentsPattern 本身支持 Ant 通配，fileExists 不支持通配（会恒为 false），
+                        // 因此官方/对比附件直接加入模式，不做 fileExists 守卫
                         def attachPatterns = []
                         if (reportFile && fileExists(reportFile)) {
                             attachPatterns.add("reports/${BUILD_NUMBER}/engineering_*/*_report_*.html")
                             attachPatterns.add("reports/${BUILD_NUMBER}/stress_*/*_report_*.html")
                         }
-                        if (fileExists("reports/${BUILD_NUMBER}/official/engineering_*/*_report_*.html")) {
-                            attachPatterns.add("reports/${BUILD_NUMBER}/official/engineering_*/*_report_*.html")
-                        }
-                        if (fileExists("reports/${BUILD_NUMBER}/*_compare_*.html")) {
-                            attachPatterns.add("reports/${BUILD_NUMBER}/*_compare_*.html")
-                        }
+                        attachPatterns.add("reports/${BUILD_NUMBER}/official/engineering_*/*_report_*.html")
+                        attachPatterns.add("reports/${BUILD_NUMBER}/*_compare_*.html")
 
                         emailext(
                             subject: "[K3.1供应商${suiteLabel}] ${params.MODEL} - ${params.SUITE} - 构建 #${BUILD_NUMBER} - ${resultLabel}${rateLabel != 'N/A' ? " (通过率 ${rateLabel})" : ''}",

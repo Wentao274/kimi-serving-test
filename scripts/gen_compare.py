@@ -172,20 +172,70 @@ def _render_lane(rec: dict | None, side: str, status: str) -> str:
     return "".join(parts)
 
 
+# 套件模块名 → 中文标题（用于套件分组头展示）
+MODULE_TITLES = {
+    "test_00_smoke_connectivity": "前置冒烟",
+    "test_01_protocol_format": "协议格式",
+    "test_01_thinking_mode": "Thinking Mode",
+    "test_02_usage_fields": "usage 字段",
+    "test_02_param_defaults": "参数默认值",
+    "test_03_thinking_mode": "thinking 模式",
+    "test_03_max_tokens_default": "max_tokens 默认值",
+    "test_04_sampling_params": "采样参数",
+    "test_04_no_system_prompt": "System Prompt",
+    "test_05_streaming_metering": "流式与计量",
+    "test_05_image_cases": "图片输入用例",
+    "test_06_structured_output": "结构化输出",
+    "test_06_trace_id": "Trace ID",
+    "test_07_tool_calls": "工具调用",
+    "test_07_token_statistics": "Token 统计分类",
+    "test_08_error_codes": "错误码",
+    "test_08_provider_deploy_id": "X-Msh-ProviderDeployId",
+    "test_09_observability": "可观测性",
+    "test_09_streaming_output_spec": "Streaming Output Spec",
+    "test_10_timeout": "超时时间",
+    "test_10_new_model_spec": "New Model Spec",
+    "test_11_thinking_effort": "Thinking effort",
+    "test_12_openclaw_cases": "OpenClaw 用例",
+    "test_13_preserve_thinking": "Preserve thinking",
+}
+
+
+def _suite_title(suite: str) -> str:
+    """engineering.tests.test_x  →  中文标题（无映射时返回原名）"""
+    name = suite.rsplit(".", 1)[-1]
+    return MODULE_TITLES.get(name, name)
+
+
+def _rate(passed: int, total: int, skipped: int) -> float:
+    """通过率 = 通过数 /（总用例 - 跳过数）"""
+    denom = total - skipped
+    return round(passed / denom * 100, 2) if denom > 0 else 0.0
+
+
+def _bucket(outcome: str) -> str:
+    """把 outcome 归为三桶：passed / failed / other（skipped、missing 不计入失败）。"""
+    if outcome == "passed":
+        return "passed"
+    if outcome in ("failed", "error"):
+        return "failed"
+    return "other"
+
+
 def render_dual(vrec, orec, vsum, osum, vmeta, ometa, model: str, stamp: str) -> str:
     cats = {"both_pass": 0, "vendor_only_fail": 0, "official_only_fail": 0, "both_fail": 0, "other": 0}
     suites: dict[str, list[tuple[str, dict | None, dict | None, str]]] = {}
     for cid in sorted(set(vrec) | set(orec)):
         v, o = vrec.get(cid), orec.get(cid)
-        vo = v["outcome"] if v else "missing"
-        oo = o["outcome"] if o else "missing"
-        if vo == "passed" and oo == "passed":
+        vb = _bucket(v["outcome"]) if v else "other"
+        ob = _bucket(o["outcome"]) if o else "other"
+        if vb == "passed" and ob == "passed":
             status = "both_pass"
-        elif vo != "passed" and oo == "passed":
+        elif vb == "failed" and ob == "passed":
             status = "vendor_only_fail"
-        elif vo == "passed" and oo != "passed":
+        elif vb == "passed" and ob == "failed":
             status = "official_only_fail"
-        elif vo != "passed" and oo != "passed":
+        elif vb == "failed" and ob == "failed":
             status = "both_fail"
         else:
             status = "other"
@@ -193,14 +243,14 @@ def render_dual(vrec, orec, vsum, osum, vmeta, ometa, model: str, stamp: str) ->
         suite = (v or o).get("suite", "unknown")
         suites.setdefault(suite, []).append((cid, v, o, status))
 
-    vendor_rate = round(vsum["passed"] / max(vsum["total"], 1) * 100, 2)
-    official_rate = round(osum["passed"] / max(osum["total"], 1) * 100, 2)
+    vendor_rate = _rate(vsum["passed"], vsum["total"], vsum.get("skipped", 0))
+    official_rate = _rate(osum["passed"], osum["total"], osum.get("skipped", 0))
 
     suite_html = []
     for suite, cases in suites.items():
         np_ = sum(1 for _, v, _, _ in cases if v and v["outcome"] == "passed")
         no_ = sum(1 for _, _, o, _ in cases if o and o["outcome"] == "passed")
-        suite_html.append(f"<h2>{_esc(suite)} <small style='color:#6b7280'>(供应商 {np_}/{len(cases)} | 官方 {no_}/{len(cases)})</small></h2>")
+        suite_html.append(f"<h2>{_esc(suite)}：{_esc(_suite_title(suite))} <small style='color:#6b7280'>(供应商 {np_}/{len(cases)} | 官方 {no_}/{len(cases)})</small></h2>")
         for cid, v, o, status in cases:
             cls = "case" + (" mismatch" if status in ("vendor_only_fail", "official_only_fail") else "")
             v_cls = "vendor_only_fail" if status == "vendor_only_fail" else ("official_only_fail" if status == "official_only_fail" else "")
@@ -234,7 +284,9 @@ def render_dual(vrec, orec, vsum, osum, vmeta, ometa, model: str, stamp: str) ->
 <tr><th>仅供应商失败</th><td colspan="5" style="color:#dc2626">{cats['vendor_only_fail']}</td></tr>
 <tr><th>仅官方失败</th><td colspan="5" style="color:#b45309">{cats['official_only_fail']}</td></tr>
 <tr><th>双边均失败</th><td colspan="5">{cats['both_fail']}</td></tr>
+<tr><th>跳过/未执行（不计入失败）</th><td colspan="5" style="color:#6b7280">{cats['other']}</td></tr>
 </table>
+<p style="font-size:12px;color:#6b7280;margin:6px 0 0;">注：通过率 = 通过数 /（总用例 - 跳过数）</p>
 <div class="toolbar">
   <button class="active" onclick="showAll(this)">全部用例</button>
   <button onclick="showMismatch(this)">仅看不一致</button>
@@ -260,19 +312,21 @@ def main() -> int:
     safe_model = "".join(c if (c.isalnum() or c in "._-") else "_" for c in model)
     stamp = time.strftime("%Y%m%d%H%M%S")
 
-    cats = {"bothpass": 0, "vendoronlyfail": 0, "officialonlyfail": 0, "bothfail": 0}
+    cats = {"bothpass": 0, "vendoronlyfail": 0, "officialonlyfail": 0, "bothfail": 0, "other": 0}
     for cid in set(vrec) | set(orec):
         v, o = vrec.get(cid), orec.get(cid)
-        vo = v["outcome"] if v else "missing"
-        oo = o["outcome"] if o else "missing"
-        if vo == "passed" and oo == "passed":
+        vb = _bucket(v["outcome"]) if v else "other"
+        ob = _bucket(o["outcome"]) if o else "other"
+        if vb == "passed" and ob == "passed":
             cats["bothpass"] += 1
-        elif vo != "passed" and oo == "passed":
+        elif vb == "failed" and ob == "passed":
             cats["vendoronlyfail"] += 1
-        elif vo == "passed" and oo != "passed":
+        elif vb == "passed" and ob == "failed":
             cats["officialonlyfail"] += 1
-        elif vo != "passed" and oo != "passed":
+        elif vb == "failed" and ob == "failed":
             cats["bothfail"] += 1
+        else:
+            cats["other"] += 1
 
     # 双通道对比报告：<model>_compare_<stamp>.html
     page = render_dual(vrec, orec, vsum, osum, vmeta, ometa, safe_model, stamp)
