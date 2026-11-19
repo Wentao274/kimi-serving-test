@@ -141,10 +141,15 @@ def _render_lane(rec: dict | None, side: str, status: str) -> str:
     if rec.get("finish_reason"):
         usage_bits.append(f"finish={rec['finish_reason']}")
 
+    warn_assertions = [a for a in (rec.get("assertions") or []) if a.get("soft") and not a.get("passed")]
+    warn_badge = (f"<span class='badge warn' title='含 {len(warn_assertions)} 条软性警告'>"
+                  f"⚠ {len(warn_assertions)}</span>") if warn_assertions else ""
+
     parts = [
         f"<div class='lane {side}'>",
         f"<div class='head' onclick='toggleCase(this)'>",
         f"<span class='badge {outcome}'>{outcome.upper()}</span>",
+        warn_badge,
         f"<span class='ttl'>{_esc(rec.get('title') or rec.get('case_id'))}</span>",
         f"<span class='time'>{_esc(' | '.join(bits))}</span>",
         "</div><div class='body'>",

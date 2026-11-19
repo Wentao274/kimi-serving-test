@@ -43,6 +43,9 @@ body { font-family: -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif;
          font-weight: 700; color: #fff; border-radius: 4px; padding: 2px 8px; flex-shrink: 0; }
 .badge.passed { background: #16a34a; } .badge.failed { background: #dc2626; }
 .badge.error { background: #b45309; } .badge.skipped { background: #6b7280; }
+.badge.warn { background: #d97706; min-width: 40px; }
+.stat.soft { cursor: pointer; }
+.stat.soft:hover { outline: 2px solid #d97706; }
 .case-title { font-size: 13px; font-weight: 600; flex: 1; word-break: break-all; }
 .case-time { font-size: 11px; color: #6b7280; white-space: nowrap; }
 .case-body { display: none; border-top: 1px solid #e5e7eb; padding: 12px 16px; }
@@ -69,10 +72,16 @@ function filterCases(status, btn) {
   btn.classList.add('active');
   const q = document.getElementById('search').value.toLowerCase();
   document.querySelectorAll('.case').forEach(c => {
-    const matchStatus = (status === 'all' || c.dataset.status === status);
+    const matchStatus = (status === 'all')
+      ? true
+      : (status === 'warn' ? c.classList.contains('has-warn') : c.dataset.status === status);
     const matchQuery = (!q || c.dataset.search.includes(q));
     c.style.display = (matchStatus && matchQuery) ? '' : 'none';
   });
+}
+function filterWarn() {
+  const btn = document.getElementById('btn-warn');
+  if (btn) filterCases('warn', btn);
 }
 function searchCases() {
   const active = document.querySelector('.toolbar button.active');
@@ -136,11 +145,18 @@ def _render_case(rec: CaseRecord) -> str:
     if rec.finish_reason:
         usage_bits.append(f"finish={rec.finish_reason}")
 
+    warn_assertions = [a for a in rec.assertions if a.soft and not a.passed]
+    has_warn = bool(warn_assertions)
+    case_cls = "case" + (" has-warn" if has_warn else "")
+    warn_badge = (f"<span class='badge warn' title='含 {len(warn_assertions)} 条软性警告'>"
+                  f"⚠ {len(warn_assertions)}</span>") if has_warn else ""
+
     parts = [
-        f"<div class='case' data-status='{rec.outcome}' "
+        f"<div class='{case_cls}' data-status='{rec.outcome}' "
         f"data-search='{_esc((rec.case_id + ' ' + rec.title).lower())}'>",
         f"<div class='case-head' onclick='toggleCase(this)'>",
         f"<span class='badge {rec.outcome}'>{rec.outcome.upper()}</span>",
+        warn_badge,
         f"<span class='case-title'>{_esc(rec.title)}</span>",
         f"<span class='case-time'>{_esc(' | '.join(timing))}</span>",
         "</div><div class='case-body'>",
@@ -188,15 +204,21 @@ def render_html(collector: Collector, meta: dict[str, Any]) -> str:
     for rec in collector.records:
         suites.setdefault(rec.suite, []).append(rec)
 
+    warn_cases = sum(
+        1 for r in collector.records
+        if any(a.soft and not a.passed for a in r.assertions)
+    )
+
     stat_cards = "".join(
-        f"<div class='stat {cls}'><div class='num'>{num}</div><div class='lbl'>{lbl}</div></div>"
-        for cls, num, lbl in [
-            ("", summary.get("total", 0), "总用例"),
-            ("passed", summary.get("passed", 0), "通过"),
-            ("failed", summary.get("failed", 0), "失败"),
-            ("error", summary.get("error", 0), "错误"),
-            ("skipped", summary.get("skipped", 0), "跳过"),
-            ("soft", summary.get("soft_warnings", 0), "软性警告"),
+        f"<div class='stat {cls}'{extra}><div class='num'>{num}</div><div class='lbl'>{lbl}</div></div>"
+        for cls, num, lbl, extra in [
+            ("", summary.get("total", 0), "总用例", ""),
+            ("passed", summary.get("passed", 0), "通过", ""),
+            ("failed", summary.get("failed", 0), "失败", ""),
+            ("error", summary.get("error", 0), "错误", ""),
+            ("skipped", summary.get("skipped", 0), "跳过", ""),
+            ("soft", summary.get("soft_warnings", 0), "软性警告",
+             " onclick='filterWarn()' title='点击筛选含警告用例'"),
         ]
     )
 
@@ -234,6 +256,7 @@ def render_html(collector: Collector, meta: dict[str, Any]) -> str:
     <button data-status="failed" onclick="filterCases('failed', this)">失败</button>
     <button data-status="error" onclick="filterCases('error', this)">错误</button>
     <button data-status="skipped" onclick="filterCases('skipped', this)">跳过</button>
+    <button id="btn-warn" data-status="warn" onclick="filterCases('warn', this)">警告 ({warn_cases})</button>
     <input id="search" type="text" placeholder="搜索用例名 / 标题..." oninput="searchCases()">
     <button onclick="expandAll(true)">全部展开</button>
     <button onclick="expandAll(false)">全部收起</button>
