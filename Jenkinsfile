@@ -190,10 +190,6 @@ if kill_repo_residual -TERM; then
 else
     echo "未发现本仓库残留进程"
 fi
-    echo "残留进程清理完成"
-else
-    echo "未发现残留进程"
-fi
 
 echo "=== 同步代码 ==="
 mkdir -p ${BUILD_OUTPUT_DIR}
