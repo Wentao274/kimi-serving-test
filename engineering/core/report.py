@@ -44,7 +44,8 @@ body { font-family: -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif;
 .badge.passed { background: #16a34a; } .badge.failed { background: #dc2626; }
 .badge.error { background: #b45309; } .badge.skipped { background: #6b7280; }
 .badge.warn { background: #d97706; min-width: 40px; }
-.stat.soft { cursor: pointer; }
+.stat { cursor: pointer; }
+.stat:hover { outline: 2px solid #9ca3af; }
 .stat.soft:hover { outline: 2px solid #d97706; }
 .case-title { font-size: 13px; font-weight: 600; flex: 1; word-break: break-all; }
 .case-time { font-size: 11px; color: #6b7280; white-space: nowrap; }
@@ -82,6 +83,10 @@ function filterCases(status, btn) {
 function filterWarn() {
   const btn = document.getElementById('btn-warn');
   if (btn) filterCases('warn', btn);
+}
+function filterByCard(status) {
+  const btn = document.querySelector('.toolbar button[data-status="' + status + '"]');
+  if (btn) filterCases(status, btn);
 }
 function searchCases() {
   const active = document.querySelector('.toolbar button.active');
@@ -212,11 +217,16 @@ def render_html(collector: Collector, meta: dict[str, Any]) -> str:
     stat_cards = "".join(
         f"<div class='stat {cls}'{extra}><div class='num'>{num}</div><div class='lbl'>{lbl}</div></div>"
         for cls, num, lbl, extra in [
-            ("", summary.get("total", 0), "总用例", ""),
-            ("passed", summary.get("passed", 0), "通过", ""),
-            ("failed", summary.get("failed", 0), "失败", ""),
-            ("error", summary.get("error", 0), "错误", ""),
-            ("skipped", summary.get("skipped", 0), "跳过", ""),
+            ("", summary.get("total", 0), "总用例",
+             " onclick='filterByCard(\"all\")' title='点击显示全部'"),
+            ("passed", summary.get("passed", 0), "通过",
+             " onclick='filterByCard(\"passed\")' title='点击筛选通过用例'"),
+            ("failed", summary.get("failed", 0), "失败",
+             " onclick='filterByCard(\"failed\")' title='点击筛选失败用例'"),
+            ("error", summary.get("error", 0), "错误",
+             " onclick='filterByCard(\"error\")' title='点击筛选错误用例'"),
+            ("skipped", summary.get("skipped", 0), "跳过",
+             " onclick='filterByCard(\"skipped\")' title='点击筛选跳过用例'"),
             ("soft", summary.get("soft_warnings", 0), "软性警告",
              " onclick='filterWarn()' title='点击筛选含警告用例'"),
         ]
