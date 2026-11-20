@@ -24,7 +24,7 @@ mkdir -p "${KST_OUT_DIR}"
 ARGS=(--base-url "${KST_BASE_URL}" --api-key "${KST_API_KEY}" --model "${KST_MODEL}"
       --report-dir "${KST_OUT_DIR}")
 
-if [ "${SUITE}" = "engineering" ]; then
+if [ "${SUITE}" = "engineering" ] || [ "${SUITE}" = "k31selfcheck" ]; then
     if [ -n "${ENG_FILTER:-}" ]; then
         ARGS=(-k "${ENG_FILTER}" "${ARGS[@]}")
     fi
@@ -56,7 +56,7 @@ elif [ "${SUITE}" = "stress" ]; then
         ARGS+=(--ramp-stages "${RAMP_STAGES}")
     fi
 else
-    echo "未知 SUITE: ${SUITE}（支持 engineering / stress）" >&2
+    echo "未知 SUITE: ${SUITE}（支持 engineering / k31selfcheck / stress）" >&2
     exit 2
 fi
 

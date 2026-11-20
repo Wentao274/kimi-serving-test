@@ -14,6 +14,9 @@ Kimi model serving verify test — K3.1 流量外采供应商 Serving 验收测�
 │   ├── core/               #   框架：配置 / HTTP 客户端 / 用例记录 / HTML 报告
 │   ├── data/               #   附件用例（本地放置，不入库，见「数据文件准备」）
 │   └── tests/              #   test_00–test_13（编号 = 截图条目号；#7/#9/#10 为 pending 占位）
+├── k31selfcheck/           # K3.1-Pro 供应商自测基线（功能兼容性 14 项，三协议 Chat/Responses/Messages）
+│   ├── protocols.py        #   三协议客户端（含 SSE 事件采集）
+│   └── tests/              #   test_k01–test_k14（编号 = 基线测试点序号）
 ├── stress/                 # 压力测试（P0 基线→P1 爬坡→P2 平台→P3 脉冲）
 │   ├── run_stress.py       #   CLI 入口
 │   └── core/               #   合同阈值 / 流量模型 / 异步引擎 / 窗口聚合判定 / 报告
@@ -148,6 +151,20 @@ python run_tests.py engineering \
 ```bash
 python run_tests.py engineering -k "test_05 or test_12" --base-url ... --api-key ... --model ...
 ```
+
+## K3.1-Pro 自测基线（k31selfcheck）
+
+依据《Kimi-K3.1-Pro 供应商自测基线标准》「二、功能兼容性要求」14 个测试点实现，覆盖三协议（Chat `/v1/chat/completions`、Responses `/v1/responses`、Messages `/anthropic/v1/messages`）：
+
+```bash
+python run_tests.py k31selfcheck \
+    --base-url https://vendor.example.com/v1 --api-key sk-xxx --model kimi-k3.1
+```
+
+- 报告：`reports/k31selfcheck_<时间戳>/<model>_selfcheck_report_<时间戳>.html`（与工程验收同格式）+ `report_data.json`
+- 14 个测试点：三协议与响应格式、usage 与缓存计量、常驻思考与推理强度、采样与输出预算、流式状态机、结构化输出、工具调用与多步闭环、错误码、参数与输入边界、可观测性、超时与长任务（heavy）、图片多模态、输入 Token 对齐（需 `--official-*`）、消息历史与思考回填
+- 协议未开放（Responses/Messages 4xx）按基线"不得以其他协议结果替代"记为失败并注明；官方对照需 `--official-base-url/--official-api-key/--official-model`
+- Jenkins：`SUITE=k31selfcheck` 直接触发（同一 Jenkinsfile)
 
 ## 压力测试（stress）
 
