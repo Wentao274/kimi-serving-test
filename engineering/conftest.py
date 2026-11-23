@@ -134,14 +134,14 @@ def pytest_sessionfinish(session, exitstatus):
     collector.finish()
 
     stamp = time.strftime("%Y%m%d_%H%M%S")
-    out_dir = Path(settings.report_dir if settings else "reports") / f"engineering_{stamp}"
+    out_dir = Path(settings.report_dir if settings else "reports") / "engineering" / stamp
     out_dir.mkdir(parents=True, exist_ok=True)
 
     data_path = out_dir / "report_data.json"
     # 报告命名：<model>_report_<yyyymmddhhmmss>.html（具备识别性）
     safe_model = "".join(c if (c.isalnum() or c in "._-") else "_" for c in (settings.model if settings else "model"))
     file_stamp = stamp.replace("_", "")
-    html_path = out_dir / f"{safe_model}_report_{file_stamp}.html"
+    html_path = out_dir / f"{safe_model}_engineering_report_{file_stamp}.html"
 
     meta = {
         "模型": settings.model if settings else "?",

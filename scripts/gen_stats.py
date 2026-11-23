@@ -4,8 +4,8 @@
 用法：
     python scripts/gen_stats.py <out_dir> <suite> <exit_code>
 
-- engineering / k31selfcheck1 / k31selfcheck2：读取 <out_dir>/<suite>_*/report_data.json（取最新）的 summary；
-- stress：读取 <out_dir>/stress_*/summary.json（取最新）的判定结果；
+- engineering / k31selfcheck1 / k31selfcheck2：读取 <out_dir>/<suite>/<时间戳>/report_data.json（取最新）的 summary；
+- stress：读取 <out_dir>/stress/<时间戳>/summary.json（取最新）的判定结果；
 - RESULT 以测试进程退出码为准（0=PASS，非 0=FAIL）。
 """
 
@@ -25,7 +25,7 @@ def latest(pattern: str) -> str | None:
 
 
 def stats_engineering(out_dir: str, suite: str = "engineering") -> dict:
-    path = latest(os.path.join(out_dir, f"{suite}_*", "report_data.json"))
+    path = latest(os.path.join(out_dir, suite, "*", "report_data.json"))
     if not path:
         return {}
     with open(path, encoding="utf-8") as f:
@@ -44,7 +44,7 @@ def stats_engineering(out_dir: str, suite: str = "engineering") -> dict:
 
 
 def stats_stress(out_dir: str) -> dict:
-    path = latest(os.path.join(out_dir, "stress_*", "summary.json"))
+    path = latest(os.path.join(out_dir, "stress", "*", "summary.json"))
     if not path:
         return {}
     with open(path, encoding="utf-8") as f:

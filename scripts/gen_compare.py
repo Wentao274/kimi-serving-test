@@ -5,8 +5,8 @@
     python scripts/gen_compare.py <out_root>
 
 输入（取各自最新一份）：
-    <out_root>/engineering_*/report_data.json          → 供应商侧
-    <out_root>/official/engineering_*/report_data.json → 官方侧
+    <out_root>/engineering/<时间戳>/report_data.json          → 供应商侧
+    <out_root>/official/engineering/<时间戳>/report_data.json → 官方侧
 
 产出：
     <out_root>/<model>_compare_<yyyymmddhhmmss>.html   双通道对比报告（左右两栏）
@@ -305,8 +305,8 @@ def render_dual(vrec, orec, vsum, osum, vmeta, ometa, model: str, stamp: str) ->
 
 def main() -> int:
     out_root = sys.argv[1]
-    vendor_path = _latest(os.path.join(out_root, "engineering_*", "report_data.json"))
-    official_path = _latest(os.path.join(out_root, "official", "engineering_*", "report_data.json"))
+    vendor_path = _latest(os.path.join(out_root, "engineering", "*", "report_data.json"))
+    official_path = _latest(os.path.join(out_root, "official", "engineering", "*", "report_data.json"))
     if not vendor_path or not official_path:
         print(f"[gen_compare] 缺少一侧报告，跳过对比（vendor={vendor_path}, official={official_path}）")
         return 0

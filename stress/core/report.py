@@ -276,8 +276,11 @@ def render_html(cfg, results: dict, run_name: str) -> str:
 
 
 def write_outputs(cfg, results: dict, run_dir, run_name: str) -> dict:
+    safe_model = "".join(c if (c.isalnum() or c in "._-") else "_" for c in cfg.model)
+    html_name = f"{safe_model}_stress_report_{run_name.replace('_', '')}.html"
     summary = {
         "run": run_name,
+        "report_html": html_name,
         "config": {
             "model": cfg.model, "base_url": cfg.base_url,
             "agreed_concurrency": cfg.agreed_concurrency,
@@ -295,5 +298,5 @@ def write_outputs(cfg, results: dict, run_dir, run_name: str) -> dict:
         json.dumps(summary, ensure_ascii=False, indent=2), encoding="utf-8")
     (run_dir / "quality_incidents.json").write_text(
         json.dumps(results["quality_incidents"], ensure_ascii=False, indent=2), encoding="utf-8")
-    (run_dir / "report.html").write_text(render_html(cfg, results, run_name), encoding="utf-8")
+    (run_dir / html_name).write_text(render_html(cfg, results, run_name), encoding="utf-8")
     return summary

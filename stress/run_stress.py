@@ -1,8 +1,8 @@
 """压力测试 CLI 入口：python run_tests.py stress [参数...]
 
 阶段：baseline(P0 基线) / ramp(P1 爬坡) / platform(P2 平台) / spike(P3 脉冲) / full(全流程)。
-产出：<report_dir>/stress_<时间戳>/ 下 report.html、summary.json、windows.json、
-metrics.jsonl（逐请求指标，无原始请求/响应，符合闭源数据合规）、quality_incidents.json。
+产出：<report_dir>/stress/<时间戳>/ 下 <model>_stress_report_<时间戳>.html、summary.json、
+windows.json、metrics.jsonl（逐请求指标，无原始请求/响应，符合闭源数据合规）、quality_incidents.json。
 """
 
 from __future__ import annotations
@@ -19,8 +19,8 @@ from .core.report import write_outputs
 def main(argv: list[str]) -> int:
     cfg = build_config(argv)
     stamp = time.strftime("%Y%m%d_%H%M%S")
-    run_name = f"stress_{stamp}"
-    run_dir = Path(cfg.report_dir) / run_name
+    run_name = stamp
+    run_dir = Path(cfg.report_dir) / "stress" / stamp
     run_dir.mkdir(parents=True, exist_ok=True)
 
     print("=" * 72)
@@ -39,7 +39,7 @@ def main(argv: list[str]) -> int:
     n_fail = sum(1 for j in judged if j["passed"] is False)
     n_na = sum(1 for j in judged if j["passed"] is None)
     print("\n" + "=" * 72)
-    print(f"压测报告: {run_dir / 'report.html'}")
+    print(f"压测报告: {run_dir / summary.get('report_html', 'report.html')}")
     print(f"判定: 失败 {n_fail} 项 | 无法判定 {n_na} 项 | "
           f"质量事故 {len(results['quality_incidents'])} 起 | 总请求 {results['total_requests']}")
     print("=" * 72)

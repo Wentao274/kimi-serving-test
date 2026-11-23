@@ -127,7 +127,7 @@ def pytest_sessionfinish(session, exitstatus):
     collector.finish()
 
     stamp = time.strftime("%Y%m%d_%H%M%S")
-    out_dir = Path(settings.report_dir if settings else "reports") / f"k31selfcheck2_{stamp}"
+    out_dir = Path(settings.report_dir if settings else "reports") / "k31selfcheck2" / stamp
     out_dir.mkdir(parents=True, exist_ok=True)
 
     data_path = out_dir / "report_data.json"

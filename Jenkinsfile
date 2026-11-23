@@ -521,7 +521,7 @@ fi
 <p>逐用例对比见附件 <strong>*_compare_*.html</strong>；两侧完整报告见附件（供应商 对比报告 *_compare_*.html）。</p>"""
                         }
 
-                        def reportFile = sh(script: "ls reports/${BUILD_NUMBER}/engineering_*/*_report_*.html reports/${BUILD_NUMBER}/stress_*/*_report_*.html reports/${BUILD_NUMBER}/k31selfcheck_*/*_selfcheck_report_*.html reports/${BUILD_NUMBER}/k31selfcheck2_*/*_selfcheck2_report_*.html 2>/dev/null | head -1", returnStdout: true).trim()
+                        def reportFile = sh(script: "ls reports/${BUILD_NUMBER}/engineering/*/*_report_*.html reports/${BUILD_NUMBER}/stress/*/*_stress_report_*.html reports/${BUILD_NUMBER}/k31selfcheck1/*/*_selfcheck1_report_*.html reports/${BUILD_NUMBER}/k31selfcheck2/*/*_selfcheck2_report_*.html 2>/dev/null | head -1", returnStdout: true).trim()
 
                         // 报告 HTML 以原格式作为附件发送，邮件正文只保留汇总统计（不内嵌报告，避免邮件客户端破坏样式）
                         def fallbackStyle = "body { font-family: 'Segoe UI', 'Microsoft YaHei', Arial, sans-serif; margin: 0 auto; max-width: 1080px; padding: 20px 32px; color: #1f2937; background: #eef1f6; font-size: 14px; line-height: 1.7; }\ntable { border-collapse: collapse; width: 100%; margin: 14px 0 18px; background: #ffffff; font-size: 13px; border: 1px solid #d8dfeb; }\nth { background: #e3edfc; color: #1e3a8a; font-weight: 600; }\nth, td { border: 1px solid #d8dfeb; padding: 6px 12px; text-align: left; vertical-align: top; }\n.email-footer { margin-top: 24px; padding: 12px 15px; background-color: #f9f9f9; border-radius: 3px; color: #666; font-size: 12px; }"
@@ -591,12 +591,12 @@ ${reportFile && fileExists(reportFile) ? '<p>详细测试报告（原始 HTML �
                         // 因此官方/对比附件直接加入模式，不做 fileExists 守卫
                         def attachPatterns = []
                         if (reportFile && fileExists(reportFile)) {
-                        attachPatterns.add("reports/${BUILD_NUMBER}/engineering_*/*_report_*.html")
-                        attachPatterns.add("reports/${BUILD_NUMBER}/stress_*/*_report_*.html")
-                        attachPatterns.add("reports/${BUILD_NUMBER}/k31selfcheck1_*/*_selfcheck1_report_*.html")
-                        attachPatterns.add("reports/${BUILD_NUMBER}/k31selfcheck2_*/*_selfcheck2_report_*.html")
+                        attachPatterns.add("reports/${BUILD_NUMBER}/engineering/*/*_report_*.html")
+                        attachPatterns.add("reports/${BUILD_NUMBER}/stress/*/*_stress_report_*.html")
+                        attachPatterns.add("reports/${BUILD_NUMBER}/k31selfcheck1/*/*_selfcheck1_report_*.html")
+                        attachPatterns.add("reports/${BUILD_NUMBER}/k31selfcheck2/*/*_selfcheck2_report_*.html")
                         }
-                        attachPatterns.add("reports/${BUILD_NUMBER}/official/engineering_*/*_report_*.html")
+                        attachPatterns.add("reports/${BUILD_NUMBER}/official/engineering/*/*_report_*.html")
                         attachPatterns.add("reports/${BUILD_NUMBER}/*_compare_*.html")
 
                         emailext(

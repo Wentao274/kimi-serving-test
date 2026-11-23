@@ -110,8 +110,8 @@ python run_tests.py engineering \
     --model kimi-k3.1
 ```
 
-运行后报告自动生成于 `reports/engineering_<时间戳>/`：
-- `<model>_report_<时间戳>.html`（如 `kimi-k3.1_report_20261118102035.html`）— 单文件 HTML 报告（汇总 + 每个用例的请求/响应/断言/curl 复现命令，可过滤/搜索）
+运行后报告自动生成于 `reports/engineering/<时间戳>/`：
+- `<model>_engineering_report_<时间戳>.html`（如 `kimi-k3.1_engineering_report_20261118102035.html`）— 单文件 HTML 报告（汇总 + 每个用例的请求/响应/断言/curl 复现命令，可过滤/搜索）
 - `report_data.json` — 全量结构化数据（HTML 中超长字段的完整内容在此）
 
 **官方双跑对比报告**：开启 `COMPARE_OFFICIAL` 后，`scripts/gen_compare.py` 生成 `<model>_compare_<时间戳>.html`——左右双通道布局（左栏供应商用例状态/请求响应详情，右栏官方同例详情），顶部含「供应商 vs 官方 对比汇总」统计，支持"仅看不一致"过滤。
@@ -163,7 +163,7 @@ python run_tests.py k31selfcheck1 \
     --base-url https://vendor.example.com/v1 --api-key sk-xxx --model kimi-k3.1
 ```
 
-- 报告：`reports/k31selfcheck1_<时间戳>/<model>_selfcheck1_report_<时间戳>.html`（与工程验收同格式）+ `report_data.json`
+- 报告：`reports/k31selfcheck1/<时间戳>/<model>_selfcheck1_report_<时间戳>.html`（与工程验收同格式）+ `report_data.json`
 - 14 个测试点：三协议与响应格式、usage 与缓存计量、常驻思考与推理强度、采样与输出预算、流式状态机、结构化输出、工具调用与多步闭环、错误码、参数与输入边界、可观测性、超时与长任务（heavy）、图片多模态、输入 Token 对齐（需 `--official-*`）、消息历史与思考回填
 - 协议未开放（Responses/Messages 4xx）按基线"不得以其他协议结果替代"记为失败并注明；官方对照需 `--official-base-url/--official-api-key/--official-model`
 - Jenkins：`SUITE=k31selfcheck1` 直接触发（同一 Jenkinsfile)
@@ -183,7 +183,7 @@ python run_tests.py k31selfcheck2 \
 python run_tests.py k31selfcheck2 --base-url ... --api-key ... --model ... --include-heavy
 ```
 
-- 报告：`reports/k31selfcheck2_<时间戳>/<model>_selfcheck2_report_<时间戳>.html` + `report_data.json`
+- 报告：`reports/k31selfcheck2/<时间戳>/<model>_selfcheck2_report_<时间戳>.html` + `report_data.json`
 - heavy 用例 3 个：不传 max_tokens 默认上限 131072 计数序列验证（约 70+ 分钟/次）、缓存 TTL 过期探测（等待时长 `KST_CACHE_TTL_WAIT_S` 可调，默认 310s）、~1M tokens 上下文接入
 - Token 计数官方对照需 `--official-base-url/--official-api-key/--official-model`（未配置则该用例跳过）
 - Jenkins：`SUITE=k31selfcheck2` 直接触发（同一 Jenkinsfile）
@@ -202,7 +202,7 @@ python run_tests.py stress --base-url https://vendor/v1 --api-key sk-xxx --model
 ```
 
 - 阶段：`baseline`(P0 各档 uncached 探针) → `ramp`(P1 爬坡) → `platform`(P2 约定并发 24h+判定) → `spike`(P3 超量脉冲验证立即 429)；`full` 全流程
-- 产出：`reports/stress_<时间戳>/`：`report.html`（判定矩阵/窗口明细/曲线/质量事故）、`summary.json`、`windows.json`（窗口快照，长跑中断不丢）、`metrics.jsonl`（逐请求指标，无原始请求/响应，闭源合规）、`quality_incidents.json`
+- 产出：`reports/stress/<时间戳>/`：`<model>_stress_report_<时间戳>.html`（判定矩阵/窗口明细/曲线/质量事故）、`summary.json`、`windows.json`（窗口快照，长跑中断不丢）、`metrics.jsonl`（逐请求指标，无原始请求/响应，闭源合规）、`quality_incidents.json`
 - 判定：容量无 >10min 塌陷 / TTFT 分档窗口达标 / OTPS 超标 ≤1% / 失败率 <1%（TPM 阈值内外口径）/ 429 时延 P90 ≤5s / 质量四项零事故；判定失败退出码非 0
 - 注：质量判定严格对应文档四项（字符重复/工具调用重复/串台/无意义输出）；claw 场景的 finish_reason 不作质量判据（工程验收 `test_12_openclaw_cases` 已专项覆盖 finish=tool_calls 校验），各请求 finish_reason 分布保留在 `metrics.jsonl` 供离线分析
 - RTO 演练（P4）需供应商配合摘流，以 platform 窗口失败率曲线人工对照（高峰 ≤10min / 低峰 ≤60min）
