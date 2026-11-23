@@ -9,7 +9,7 @@ pipeline {
     }
 
     parameters {
-        choice(name: 'SUITE', choices: ['engineering', 'k31selfcheck', 'stress'], description: '测试套件：engineering=工程验收（条目 #1-#10+补充条目，pytest）；k31selfcheck=K3.1-Pro 供应商自测基线（功能兼容性 14 项，pytest）；stress=压力测试（P0基线→P1爬坡→P2平台→P3脉冲）')
+        choice(name: 'SUITE', choices: ['engineering', 'k31selfcheck', 'k31selfcheck2', 'stress'], description: '测试套件：engineering=工程验收（条目 #1-#10+补充条目，pytest）；k31selfcheck=K3.1-Pro 供应商自测基线（功能兼容性 14 项，pytest）；k31selfcheck2=模型接入要求（对外版）功能测试 3.1/3.2 共 29 项（pytest）；stress=压力测试（P0基线→P1爬坡→P2平台→P3脉冲）')
         string(name: 'TESTER', defaultValue: 'liwt', description: '测试人员名称（必填）')
         string(name: 'MODEL', defaultValue: 'kimi-k3.1', description: '被测供应商模型名（必填，即 /v1/models 返回的 id 或供应商约定名）')
         string(name: 'BASE_URL', defaultValue: 'https://vendor.example.com', description: '供应商 API 根地址（必填，可不带 /v1，流水线自动拼接）')
@@ -82,7 +82,7 @@ pipeline {
                         println("官方重负载:   ${params.OFFICIAL_INCLUDE_HEAVY}")
                         println("官方对照:     ${params.OFFICIAL_BASE_URL ? params.OFFICIAL_BASE_URL : '(不启用)'}")
                         println("官方双跑对比: ${params.COMPARE_OFFICIAL ? "开启（范围: ${params.COMPARE_FILTER ?: '(全量)'}）" : '关闭'}")
-                    } else if (params.SUITE == 'k31selfcheck') {
+                    } else if (params.SUITE == 'k31selfcheck' || params.SUITE == 'k31selfcheck2') {
                         println("用例过滤:     ${params.ENG_FILTER ?: '(全量)'}")
                         println("供应商重负载: ${params.VENDOR_INCLUDE_HEAVY}")
                         println("官方对照:     ${params.OFFICIAL_BASE_URL ? params.OFFICIAL_BASE_URL : '(不启用)'}")
@@ -321,6 +321,43 @@ ENDSSH"""
             }
         }
 
+        stage('运行模型接入功能测试(k31selfcheck2)') {
+            when {
+                expression { env.CONNECTIVITY_FAILED != 'true' && params.SUITE == 'k31selfcheck2' }
+            }
+            steps {
+                script {
+                    def apiKey = params.API_KEY?.toString()?.trim()
+                    if (!apiKey) { apiKey = 'EMPTY' }
+                    def officialKey = params.OFFICIAL_API_KEY?.toString()?.trim() ?: ''
+                    def engFilter = params.ENG_FILTER
+                    sshagent(credentials: ["${SSH_CREDENTIALS}"]) {
+                        catchError(buildResult: 'UNSTABLE', stageResult: 'FAILURE') {
+                            sh """
+ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${REMOTE_HOST} << 'ENDSSH'
+set -e
+cd ${params.WORK_DIR}
+mkdir -p ${BUILD_OUTPUT_DIR}
+
+export SUITE="k31selfcheck2"
+export KST_BASE_URL="${env.BASE_URL_V1}"
+export KST_API_KEY="${apiKey}"
+export KST_MODEL="${params.MODEL}"
+export KST_OUT_DIR="${params.WORK_DIR}/${BUILD_OUTPUT_DIR}"
+export ENG_FILTER="${engFilter}"
+export ENG_INCLUDE_HEAVY="${params.VENDOR_INCLUDE_HEAVY}"
+export OFFICIAL_BASE_URL="${params.OFFICIAL_BASE_URL}"
+export OFFICIAL_API_KEY="${officialKey}"
+export OFFICIAL_MODEL="${params.OFFICIAL_MODEL}"
+
+bash scripts/run_suite.sh
+ENDSSH"""
+                        }
+                    }
+                }
+            }
+        }
+
         stage('官方渠道对比执行') {
             when {
                 expression { env.CONNECTIVITY_FAILED != 'true' && params.SUITE == 'engineering' && params.COMPARE_OFFICIAL }
@@ -484,7 +521,7 @@ fi
 <p>逐用例对比见附件 <strong>*_compare_*.html</strong>；两侧完整报告见附件（供应商 对比报告 *_compare_*.html）。</p>"""
                         }
 
-                        def reportFile = sh(script: "ls reports/${BUILD_NUMBER}/engineering_*/*_report_*.html reports/${BUILD_NUMBER}/stress_*/*_report_*.html reports/${BUILD_NUMBER}/k31selfcheck_*/*_selfcheck_report_*.html 2>/dev/null | head -1", returnStdout: true).trim()
+                        def reportFile = sh(script: "ls reports/${BUILD_NUMBER}/engineering_*/*_report_*.html reports/${BUILD_NUMBER}/stress_*/*_report_*.html reports/${BUILD_NUMBER}/k31selfcheck_*/*_selfcheck_report_*.html reports/${BUILD_NUMBER}/k31selfcheck2_*/*_selfcheck2_report_*.html 2>/dev/null | head -1", returnStdout: true).trim()
 
                         // 报告 HTML 以原格式作为附件发送，邮件正文只保留汇总统计（不内嵌报告，避免邮件客户端破坏样式）
                         def fallbackStyle = "body { font-family: 'Segoe UI', 'Microsoft YaHei', Arial, sans-serif; margin: 0 auto; max-width: 1080px; padding: 20px 32px; color: #1f2937; background: #eef1f6; font-size: 14px; line-height: 1.7; }\ntable { border-collapse: collapse; width: 100%; margin: 14px 0 18px; background: #ffffff; font-size: 13px; border: 1px solid #d8dfeb; }\nth { background: #e3edfc; color: #1e3a8a; font-weight: 600; }\nth, td { border: 1px solid #d8dfeb; padding: 6px 12px; text-align: left; vertical-align: top; }\n.email-footer { margin-top: 24px; padding: 12px 15px; background-color: #f9f9f9; border-radius: 3px; color: #666; font-size: 12px; }"
@@ -494,10 +531,11 @@ fi
                         def rateLabel = stats.rate ? "${stats.rate}%" : 'N/A'
                         def bannerColor = (resultLabel == 'PASS') ? '#4CAF50' : '#f44336'
                         def suiteLabel = (params.SUITE == 'engineering') ? '工程验收'
-                            : (params.SUITE == 'k31selfcheck') ? 'K3.1-Pro自测' : '压力测试'
+                            : (params.SUITE == 'k31selfcheck') ? 'K3.1-Pro自测'
+                            : (params.SUITE == 'k31selfcheck2') ? '模型接入功能测试' : '压力测试'
 
                         def suiteParamsRows = ''
-                        if (params.SUITE == 'engineering' || params.SUITE == 'k31selfcheck') {
+                        if (params.SUITE == 'engineering' || params.SUITE == 'k31selfcheck' || params.SUITE == 'k31selfcheck2') {
                             suiteParamsRows = """
     <tr><th>用例过滤</th><td>${params.ENG_FILTER ?: '(全量)'}</td></tr>
     <tr><th>重负载用例</th><td>供应商: ${params.VENDOR_INCLUDE_HEAVY} / 官方: ${params.OFFICIAL_INCLUDE_HEAVY}</td></tr>
@@ -556,6 +594,7 @@ ${reportFile && fileExists(reportFile) ? '<p>详细测试报告（原始 HTML �
                         attachPatterns.add("reports/${BUILD_NUMBER}/engineering_*/*_report_*.html")
                         attachPatterns.add("reports/${BUILD_NUMBER}/stress_*/*_report_*.html")
                         attachPatterns.add("reports/${BUILD_NUMBER}/k31selfcheck_*/*_selfcheck_report_*.html")
+                        attachPatterns.add("reports/${BUILD_NUMBER}/k31selfcheck2_*/*_selfcheck2_report_*.html")
                         }
                         attachPatterns.add("reports/${BUILD_NUMBER}/official/engineering_*/*_report_*.html")
                         attachPatterns.add("reports/${BUILD_NUMBER}/*_compare_*.html")

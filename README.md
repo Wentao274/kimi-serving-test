@@ -17,6 +17,8 @@ Kimi model serving verify test — K3.1 流量外采供应商 Serving 验收测�
 ├── k31selfcheck/           # K3.1-Pro 供应商自测基线（功能兼容性 14 项，三协议 Chat/Responses/Messages）
 │   ├── protocols.py        #   三协议客户端（含 SSE 事件采集）
 │   └── tests/              #   test_k01–test_k14（编号 = 基线测试点序号）
+├── k31selfcheck2/          # 模型接入要求（对外版）功能测试（3.1/3.2，92 用例）
+│   └── tests/              #   test_31_xx / test_32_xx（编号 = 文档测试点序号）
 ├── stress/                 # 压力测试（P0 基线→P1 爬坡→P2 平台→P3 脉冲）
 │   ├── run_stress.py       #   CLI 入口
 │   └── core/               #   合同阈值 / 流量模型 / 异步引擎 / 窗口聚合判定 / 报告
@@ -166,6 +168,26 @@ python run_tests.py k31selfcheck \
 - 协议未开放（Responses/Messages 4xx）按基线"不得以其他协议结果替代"记为失败并注明；官方对照需 `--official-base-url/--official-api-key/--official-model`
 - Jenkins：`SUITE=k31selfcheck` 直接触发（同一 Jenkinsfile)
 
+## 模型接入功能测试（k31selfcheck2）
+
+依据《模型接入要求（对外版）》「3. 功能」实现：3.1 整体基本要求（11 项）+ 3.2 API 功能测试（18 项），共 92 用例。默认值与预期行为按 kimi-k3.1-pro 官方规格对齐：
+
+- thinking：enabled/disabled 均支持、默认 enabled；effort 三档 low/high/max（thinking.effort）、默认 max
+- max_tokens：默认/上限 131072，显式传 >131072 拒绝（400）
+- temperature：thinking 模式允许 {0, 0.6, 1.0}，disabled 仅 {0.6}，违规 400 / immutable_param；top_p=0.95、presence_penalty=0、frequency_penalty=0 仅接受官方默认值
+
+```bash
+python run_tests.py k31selfcheck2 \
+    --base-url https://vendor.example.com/v1 --api-key sk-xxx --model kimi-k3.1
+# 重负载用例（默认跳过，需 --include-heavy）：
+python run_tests.py k31selfcheck2 --base-url ... --api-key ... --model ... --include-heavy
+```
+
+- 报告：`reports/k31selfcheck2_<时间戳>/<model>_selfcheck2_report_<时间戳>.html` + `report_data.json`
+- heavy 用例 3 个：不传 max_tokens 默认上限 131072 计数序列验证（约 70+ 分钟/次）、缓存 TTL 过期探测（等待时长 `KST_CACHE_TTL_WAIT_S` 可调，默认 310s）、~1M tokens 上下文接入
+- Token 计数官方对照需 `--official-base-url/--official-api-key/--official-model`（未配置则该用例跳过）
+- Jenkins：`SUITE=k31selfcheck2` 直接触发（同一 Jenkinsfile）
+
 ## 压力测试（stress）
 
 按客户需求文档合同指标实现（TTFT 五档、OTPS>30/1%、立即 429、10min 窗口 SLA、质量四项、24h 平台）：
@@ -193,6 +215,7 @@ python run_tests.py stress --base-url https://vendor/v1 --api-key sk-xxx --model
 | 方式 | 说明 |
 |---|---|
 | `SUITE=engineering` | 工程验收（pytest），参数：`ENG_FILTER`（-k 过滤）、`INCLUDE_HEAVY`、`OFFICIAL_*`、`COMPARE_OFFICIAL`（官方双跑对比，默认关）、`COMPARE_FILTER`（对比范围，空=全量，示例 `"test_05 or test_12"`） |
+| `SUITE=k31selfcheck` / `SUITE=k31selfcheck2` | 供应商自测基线 / 模型接入功能测试（对外版 3.1/3.2），参数：`ENG_FILTER`、`VENDOR_INCLUDE_HEAVY`（heavy 用例）、`OFFICIAL_*`（官方对照） |
 | `SUITE=stress` | 压力测试，参数：`STRESS_PHASE`、`AGREED_*`、`LOAD_THRESHOLD_TPM`、`PLATFORM_DURATION`（默认 86400=24h，与套件原始默认一致；短时验证显式填小）、`SPIKE_*`、`WINDOW_S`、`PROMPT_SCALE`、`RAMP_STAGES` |
 
 流水线执行（master → SSH 远程测试机）：打印参数 → API 连通性预检（失败即终止后续）→ 环境检查（清残留进程 / git pull 并**记录代码版本** / uv venv / engineering 数据文件检查）→ 按 SUITE 运行 → 报告拉取 → 邮件（**正文仅汇总统计 + 测试代码版本，报告 HTML 以原格式作为附件发送；git pull 失败时邮件醒目告警**）→ 保留最近 20 构建。报告输出在远程机 `builds/<suite>/<tester>/<model>/<构建号>/`（engineering 与 stress 分目录）。

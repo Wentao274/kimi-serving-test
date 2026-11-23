@@ -4,7 +4,7 @@
 用法：
     python scripts/gen_stats.py <out_dir> <suite> <exit_code>
 
-- engineering：读取 <out_dir>/engineering_*/report_data.json（取最新）的 summary；
+- engineering / k31selfcheck / k31selfcheck2：读取 <out_dir>/<suite>_*/report_data.json（取最新）的 summary；
 - stress：读取 <out_dir>/stress_*/summary.json（取最新）的判定结果；
 - RESULT 以测试进程退出码为准（0=PASS，非 0=FAIL）。
 """
@@ -24,8 +24,8 @@ def latest(pattern: str) -> str | None:
     return max(files, key=os.path.getmtime)
 
 
-def stats_engineering(out_dir: str) -> dict:
-    path = latest(os.path.join(out_dir, "engineering_*", "report_data.json"))
+def stats_engineering(out_dir: str, suite: str = "engineering") -> dict:
+    path = latest(os.path.join(out_dir, f"{suite}_*", "report_data.json"))
     if not path:
         return {}
     with open(path, encoding="utf-8") as f:
@@ -66,7 +66,7 @@ def stats_stress(out_dir: str) -> dict:
 
 def main() -> int:
     out_dir, suite, exit_code = sys.argv[1], sys.argv[2], int(sys.argv[3])
-    stats = stats_engineering(out_dir) if suite == "engineering" else stats_stress(out_dir)
+    stats = stats_stress(out_dir) if suite == "stress" else stats_engineering(out_dir, suite)
     stats["result"] = "PASS" if exit_code == 0 else "FAIL"
     stats["suite"] = suite
 
