@@ -8,8 +8,8 @@ frequency_penalty=0 列为固定值，应被接受；max_completion_tokens 小�
 
 from __future__ import annotations
 
-from k31selfcheck.protocols import ProtocolClient
-from k31selfcheck.tests._common import attach_proto, expect_protocol_open, proto  # noqa: F401
+from k31selfcheck1.protocols import ProtocolClient
+from k31selfcheck1.tests._common import attach_proto, expect_protocol_open, proto  # noqa: F401
 
 _MESSAGES = [{"role": "user", "content": "写一段关于春天的描写，不少于 200 字。"}]
 _BUDGET = 64

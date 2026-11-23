@@ -9,8 +9,8 @@ cache_creation_input_tokens 若返回）。字段存在性 + 整数类型；缺�
 
 from __future__ import annotations
 
-from k31selfcheck.protocols import ProtocolClient
-from k31selfcheck.tests._common import attach_proto, expect_protocol_open, proto  # noqa: F401
+from k31selfcheck1.protocols import ProtocolClient
+from k31selfcheck1.tests._common import attach_proto, expect_protocol_open, proto  # noqa: F401
 
 _MESSAGES = [{"role": "user", "content": "你好，请回复一个字。"}]
 

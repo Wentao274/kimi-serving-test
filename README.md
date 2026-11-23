@@ -14,7 +14,7 @@ Kimi model serving verify test — K3.1 流量外采供应商 Serving 验收测�
 │   ├── core/               #   框架：配置 / HTTP 客户端 / 用例记录 / HTML 报告
 │   ├── data/               #   附件用例（本地放置，不入库，见「数据文件准备」）
 │   └── tests/              #   test_00–test_13（编号 = 截图条目号；#7/#9/#10 为 pending 占位）
-├── k31selfcheck/           # K3.1-Pro 供应商自测基线（功能兼容性 14 项，三协议 Chat/Responses/Messages）
+├── k31selfcheck1/          # K3.1-Pro 供应商自测基线（功能兼容性 14 项，三协议 Chat/Responses/Messages）
 │   ├── protocols.py        #   三协议客户端（含 SSE 事件采集）
 │   └── tests/              #   test_k01–test_k14（编号 = 基线测试点序号）
 ├── k31selfcheck2/          # 模型接入要求（对外版）功能测试（3.1/3.2，92 用例）
@@ -154,19 +154,19 @@ python run_tests.py engineering \
 python run_tests.py engineering -k "test_05 or test_12" --base-url ... --api-key ... --model ...
 ```
 
-## K3.1-Pro 自测基线（k31selfcheck）
+## K3.1-Pro 自测基线（k31selfcheck1）
 
 依据《Kimi-K3.1-Pro 供应商自测基线标准》「二、功能兼容性要求」14 个测试点实现，覆盖三协议（Chat `/v1/chat/completions`、Responses `/v1/responses`、Messages `/anthropic/v1/messages`）：
 
 ```bash
-python run_tests.py k31selfcheck \
+python run_tests.py k31selfcheck1 \
     --base-url https://vendor.example.com/v1 --api-key sk-xxx --model kimi-k3.1
 ```
 
-- 报告：`reports/k31selfcheck_<时间戳>/<model>_selfcheck_report_<时间戳>.html`（与工程验收同格式）+ `report_data.json`
+- 报告：`reports/k31selfcheck1_<时间戳>/<model>_selfcheck1_report_<时间戳>.html`（与工程验收同格式）+ `report_data.json`
 - 14 个测试点：三协议与响应格式、usage 与缓存计量、常驻思考与推理强度、采样与输出预算、流式状态机、结构化输出、工具调用与多步闭环、错误码、参数与输入边界、可观测性、超时与长任务（heavy）、图片多模态、输入 Token 对齐（需 `--official-*`）、消息历史与思考回填
 - 协议未开放（Responses/Messages 4xx）按基线"不得以其他协议结果替代"记为失败并注明；官方对照需 `--official-base-url/--official-api-key/--official-model`
-- Jenkins：`SUITE=k31selfcheck` 直接触发（同一 Jenkinsfile)
+- Jenkins：`SUITE=k31selfcheck1` 直接触发（同一 Jenkinsfile)
 
 ## 模型接入功能测试（k31selfcheck2）
 
@@ -215,7 +215,7 @@ python run_tests.py stress --base-url https://vendor/v1 --api-key sk-xxx --model
 | 方式 | 说明 |
 |---|---|
 | `SUITE=engineering` | 工程验收（pytest），参数：`ENG_FILTER`（-k 过滤）、`INCLUDE_HEAVY`、`OFFICIAL_*`、`COMPARE_OFFICIAL`（官方双跑对比，默认关）、`COMPARE_FILTER`（对比范围，空=全量，示例 `"test_05 or test_12"`） |
-| `SUITE=k31selfcheck` / `SUITE=k31selfcheck2` | 供应商自测基线 / 模型接入功能测试（对外版 3.1/3.2），参数：`ENG_FILTER`、`VENDOR_INCLUDE_HEAVY`（heavy 用例）、`OFFICIAL_*`（官方对照） |
+| `SUITE=k31selfcheck1` / `SUITE=k31selfcheck2` | 供应商自测基线 / 模型接入功能测试（对外版 3.1/3.2），参数：`ENG_FILTER`、`VENDOR_INCLUDE_HEAVY`（heavy 用例）、`OFFICIAL_*`（官方对照） |
 | `SUITE=stress` | 压力测试，参数：`STRESS_PHASE`、`AGREED_*`、`LOAD_THRESHOLD_TPM`、`PLATFORM_DURATION`（默认 86400=24h，与套件原始默认一致；短时验证显式填小）、`SPIKE_*`、`WINDOW_S`、`PROMPT_SCALE`、`RAMP_STAGES` |
 
 流水线执行（master → SSH 远程测试机）：打印参数 → API 连通性预检（失败即终止后续）→ 环境检查（清残留进程 / git pull 并**记录代码版本** / uv venv / engineering 数据文件检查）→ 按 SUITE 运行 → 报告拉取 → 邮件（**正文仅汇总统计 + 测试代码版本，报告 HTML 以原格式作为附件发送；git pull 失败时邮件醒目告警**）→ 保留最近 20 构建。报告输出在远程机 `builds/<suite>/<tester>/<model>/<构建号>/`（engineering 与 stress 分目录）。

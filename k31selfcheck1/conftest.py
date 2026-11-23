@@ -1,4 +1,4 @@
-"""k31selfcheck pytest 配置：复用 engineering core 的配置/客户端/记录/报告。"""
+"""k31selfcheck1 pytest 配置：复用 engineering core 的配置/客户端/记录/报告。"""
 
 from __future__ import annotations
 
@@ -18,7 +18,7 @@ COLLECTOR: Collector | None = None
 
 
 def pytest_addoption(parser):
-    group = parser.getgroup("k31selfcheck", "K3.1-Pro 供应商自测基线 功能兼容性验收")
+    group = parser.getgroup("k31selfcheck1", "K3.1-Pro 供应商自测基线 功能兼容性验收")
     group.addoption("--base-url", default=None, help="供应商 API base url，或 KST_BASE_URL")
     group.addoption("--api-key", default=None, help="供应商 API key，或 KST_API_KEY")
     group.addoption("--model", default="kimi-k3.1-pro", help="被测模型名，或 KST_MODEL")
@@ -127,12 +127,12 @@ def pytest_sessionfinish(session, exitstatus):
     collector.finish()
 
     stamp = time.strftime("%Y%m%d_%H%M%S")
-    out_dir = Path(settings.report_dir if settings else "reports") / f"k31selfcheck_{stamp}"
+    out_dir = Path(settings.report_dir if settings else "reports") / f"k31selfcheck1_{stamp}"
     out_dir.mkdir(parents=True, exist_ok=True)
 
     data_path = out_dir / "report_data.json"
     safe_model = "".join(c if (c.isalnum() or c in "._-") else "_" for c in (settings.model if settings else "model"))
-    html_path = out_dir / f"{safe_model}_selfcheck_report_{stamp.replace('_', '')}.html"
+    html_path = out_dir / f"{safe_model}_selfcheck1_report_{stamp.replace('_', '')}.html"
 
     # 提交物：部署版本（若响应头含 X-Msh-ProviderDeployId 则记录）
     deploy_id = ""

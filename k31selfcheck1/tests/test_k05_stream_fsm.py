@@ -11,8 +11,8 @@ from __future__ import annotations
 
 import json
 
-from k31selfcheck.protocols import ProtocolClient
-from k31selfcheck.tests._common import attach_proto, expect_protocol_open, proto  # noqa: F401
+from k31selfcheck1.protocols import ProtocolClient
+from k31selfcheck1.tests._common import attach_proto, expect_protocol_open, proto  # noqa: F401
 
 _MESSAGES = [{"role": "user", "content": "从 1 数到 5，每个数字一行。"}]
 

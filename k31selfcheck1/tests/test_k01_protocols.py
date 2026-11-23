@@ -8,12 +8,12 @@ protocol_not_open_note，不以其他协议结果替代。
 
 from __future__ import annotations
 
-from k31selfcheck.protocols import (
+from k31selfcheck1.protocols import (
     ProtocolClient,
     messages_content_types,
     responses_output_types,
 )
-from k31selfcheck.tests._common import attach_proto, expect_protocol_open, proto  # noqa: F401
+from k31selfcheck1.tests._common import attach_proto, expect_protocol_open, proto  # noqa: F401
 
 _SIMPLE_MESSAGES = [{"role": "user", "content": "用一句话介绍你自己。"}]
 

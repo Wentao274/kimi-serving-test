@@ -9,7 +9,7 @@ pipeline {
     }
 
     parameters {
-        choice(name: 'SUITE', choices: ['engineering', 'k31selfcheck', 'k31selfcheck2', 'stress'], description: '测试套件：engineering=工程验收（条目 #1-#10+补充条目，pytest）；k31selfcheck=K3.1-Pro 供应商自测基线（功能兼容性 14 项，pytest）；k31selfcheck2=模型接入要求（对外版）功能测试 3.1/3.2 共 29 项（pytest）；stress=压力测试（P0基线→P1爬坡→P2平台→P3脉冲）')
+        choice(name: 'SUITE', choices: ['engineering', 'k31selfcheck1', 'k31selfcheck2', 'stress'], description: '测试套件：engineering=工程验收（条目 #1-#10+补充条目，pytest）；k31selfcheck1=K3.1-Pro 供应商自测基线（功能兼容性 14 项，pytest）；k31selfcheck2=模型接入要求（对外版）功能测试 3.1/3.2 共 29 项（pytest）；stress=压力测试（P0基线→P1爬坡→P2平台→P3脉冲）')
         string(name: 'TESTER', defaultValue: 'liwt', description: '测试人员名称（必填）')
         string(name: 'MODEL', defaultValue: 'kimi-k3.1', description: '被测供应商模型名（必填，即 /v1/models 返回的 id 或供应商约定名）')
         string(name: 'BASE_URL', defaultValue: 'https://vendor.example.com', description: '供应商 API 根地址（必填，可不带 /v1，流水线自动拼接）')
@@ -82,7 +82,7 @@ pipeline {
                         println("官方重负载:   ${params.OFFICIAL_INCLUDE_HEAVY}")
                         println("官方对照:     ${params.OFFICIAL_BASE_URL ? params.OFFICIAL_BASE_URL : '(不启用)'}")
                         println("官方双跑对比: ${params.COMPARE_OFFICIAL ? "开启（范围: ${params.COMPARE_FILTER ?: '(全量)'}）" : '关闭'}")
-                    } else if (params.SUITE == 'k31selfcheck' || params.SUITE == 'k31selfcheck2') {
+                    } else if (params.SUITE == 'k31selfcheck1' || params.SUITE == 'k31selfcheck2') {
                         println("用例过滤:     ${params.ENG_FILTER ?: '(全量)'}")
                         println("供应商重负载: ${params.VENDOR_INCLUDE_HEAVY}")
                         println("官方对照:     ${params.OFFICIAL_BASE_URL ? params.OFFICIAL_BASE_URL : '(不启用)'}")
@@ -284,9 +284,9 @@ ENDSSH"""
             }
         }
 
-        stage('运行K3.1-Pro自测(k31selfcheck)') {
+        stage('运行K3.1-Pro自测(k31selfcheck1)') {
             when {
-                expression { env.CONNECTIVITY_FAILED != 'true' && params.SUITE == 'k31selfcheck' }
+                expression { env.CONNECTIVITY_FAILED != 'true' && params.SUITE == 'k31selfcheck1' }
             }
             steps {
                 script {
@@ -302,7 +302,7 @@ set -e
 cd ${params.WORK_DIR}
 mkdir -p ${BUILD_OUTPUT_DIR}
 
-export SUITE="k31selfcheck"
+export SUITE="k31selfcheck1"
 export KST_BASE_URL="${env.BASE_URL_V1}"
 export KST_API_KEY="${apiKey}"
 export KST_MODEL="${params.MODEL}"
@@ -531,11 +531,11 @@ fi
                         def rateLabel = stats.rate ? "${stats.rate}%" : 'N/A'
                         def bannerColor = (resultLabel == 'PASS') ? '#4CAF50' : '#f44336'
                         def suiteLabel = (params.SUITE == 'engineering') ? '工程验收'
-                            : (params.SUITE == 'k31selfcheck') ? 'K3.1-Pro自测'
+                            : (params.SUITE == 'k31selfcheck1') ? 'K3.1-Pro自测'
                             : (params.SUITE == 'k31selfcheck2') ? '模型接入功能测试' : '压力测试'
 
                         def suiteParamsRows = ''
-                        if (params.SUITE == 'engineering' || params.SUITE == 'k31selfcheck' || params.SUITE == 'k31selfcheck2') {
+                        if (params.SUITE == 'engineering' || params.SUITE == 'k31selfcheck1' || params.SUITE == 'k31selfcheck2') {
                             suiteParamsRows = """
     <tr><th>用例过滤</th><td>${params.ENG_FILTER ?: '(全量)'}</td></tr>
     <tr><th>重负载用例</th><td>供应商: ${params.VENDOR_INCLUDE_HEAVY} / 官方: ${params.OFFICIAL_INCLUDE_HEAVY}</td></tr>
@@ -593,7 +593,7 @@ ${reportFile && fileExists(reportFile) ? '<p>详细测试报告（原始 HTML �
                         if (reportFile && fileExists(reportFile)) {
                         attachPatterns.add("reports/${BUILD_NUMBER}/engineering_*/*_report_*.html")
                         attachPatterns.add("reports/${BUILD_NUMBER}/stress_*/*_report_*.html")
-                        attachPatterns.add("reports/${BUILD_NUMBER}/k31selfcheck_*/*_selfcheck_report_*.html")
+                        attachPatterns.add("reports/${BUILD_NUMBER}/k31selfcheck1_*/*_selfcheck1_report_*.html")
                         attachPatterns.add("reports/${BUILD_NUMBER}/k31selfcheck2_*/*_selfcheck2_report_*.html")
                         }
                         attachPatterns.add("reports/${BUILD_NUMBER}/official/engineering_*/*_report_*.html")

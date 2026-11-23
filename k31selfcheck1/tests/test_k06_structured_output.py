@@ -11,12 +11,12 @@ from __future__ import annotations
 
 import json
 
-from k31selfcheck.protocols import (
+from k31selfcheck1.protocols import (
     ProtocolClient,
     messages_text,
     responses_text,
 )
-from k31selfcheck.tests._common import attach_proto, expect_protocol_open, proto  # noqa: F401
+from k31selfcheck1.tests._common import attach_proto, expect_protocol_open, proto  # noqa: F401
 
 _BOOK_SCHEMA = {
     "type": "object",

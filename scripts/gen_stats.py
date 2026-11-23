@@ -4,7 +4,7 @@
 用法：
     python scripts/gen_stats.py <out_dir> <suite> <exit_code>
 
-- engineering / k31selfcheck / k31selfcheck2：读取 <out_dir>/<suite>_*/report_data.json（取最新）的 summary；
+- engineering / k31selfcheck1 / k31selfcheck2：读取 <out_dir>/<suite>_*/report_data.json（取最新）的 summary；
 - stress：读取 <out_dir>/stress_*/summary.json（取最新）的判定结果；
 - RESULT 以测试进程退出码为准（0=PASS，非 0=FAIL）。
 """

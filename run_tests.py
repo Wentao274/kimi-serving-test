@@ -24,7 +24,7 @@ ROOT = Path(__file__).resolve().parent
 # 测试套件注册表：suite 名 -> pytest 目标路径
 SUITES = {
     "engineering": "engineering/tests",
-    "k31selfcheck": "k31selfcheck/tests",   # K3.1-Pro 供应商自测基线（功能兼容性）
+    "k31selfcheck1": "k31selfcheck1/tests",  # K3.1-Pro 供应商自测基线（功能兼容性）
     "k31selfcheck2": "k31selfcheck2/tests",  # 模型接入要求（对外版）功能测试 3.1/3.2
     # "kvv": "kvv/tests",            # 待实现（或对接官方 Kimi-Vendor-Verifier）
 }

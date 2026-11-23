@@ -11,12 +11,12 @@ from __future__ import annotations
 
 import pytest
 
-from k31selfcheck.protocols import (
+from k31selfcheck1.protocols import (
     ProtocolClient,
     messages_content_types,
     responses_output_types,
 )
-from k31selfcheck.tests._common import attach_proto, expect_protocol_open, proto  # noqa: F401
+from k31selfcheck1.tests._common import attach_proto, expect_protocol_open, proto  # noqa: F401
 
 _MESSAGES = [{"role": "user", "content": "9.11 和 9.9 哪个大？简要回答。"}]
 

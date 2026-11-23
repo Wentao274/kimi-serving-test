@@ -12,7 +12,7 @@ import pytest
 
 from engineering.core.recorder import build_curl
 
-from k31selfcheck.protocols import ProtocolClient, ProtoResult, protocol_not_open_note
+from k31selfcheck1.protocols import ProtocolClient, ProtoResult, protocol_not_open_note
 
 
 @pytest.fixture(scope="session")
