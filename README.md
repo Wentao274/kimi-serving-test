@@ -19,6 +19,10 @@ Kimi model serving verify test — K3.1 流量外采供应商 Serving 验收测�
 │   └── tests/              #   test_k01–test_k14（编号 = 基线测试点序号）
 ├── k31selfcheck2/          # 模型接入要求（对外版）功能测试（3.1/3.2，92 用例）
 │   └── tests/              #   test_31_xx / test_32_xx（编号 = 文档测试点序号）
+├── k31selfstress1/         # K3.1-Pro 性能基线（TTFT 五档 / TPOT / 缓存基线，三场景合一报告）
+│   ├── config.yaml         #   全部测试参数（阈值唯一出处，CLI 覆盖常用项）
+│   ├── run_perf.py         #   CLI 入口
+│   └── core/               #   配置 / 异步流式客户端 / 数据集 / 两场景 / 判定 / 报告
 ├── stress/                 # 压力测试（P0 基线→P1 爬坡→P2 平台→P3 脉冲）
 │   ├── run_stress.py       #   CLI 入口
 │   └── core/               #   合同阈值 / 流量模型 / 异步引擎 / 窗口聚合判定 / 报告
@@ -188,6 +192,27 @@ python run_tests.py k31selfcheck2 --base-url ... --api-key ... --model ... --inc
 - Token 计数官方对照需 `--official-base-url/--official-api-key/--official-model`（未配置则该用例跳过）
 - Jenkins：`SUITE=k31selfcheck2` 直接触发（同一 Jenkinsfile）
 
+## K3.1-Pro 性能基线（k31selfstress1）
+
+依据《Kimi-K3.1-Pro 供应商自测基线标准》三/四/五章实现，三场景结果合入同一份性能报告：
+
+- **TTFT 基线（按输入长度分档）**：`stream=true` + `max_tokens=256` + 无缓存命中（逐请求唯一 nonce 前缀，cached_tokens=0 校验），五档（2k-20k/20k-50k/50k-80k/80k-130k/130k+）各 n≈320，判定 avg ≤ 基线×1.3 且 P90 ≤ 基线×1.5
+- **TPOT 基线**：同批流式请求测量，判定 avg ≤33ms / P50 ≤38ms / P90 ≤46ms
+- **缓存基线**：Warm(~70k tokens 稳定前缀) → 立即 Probe 命中率 ≥85%（90% 前缀重复）；TTL：warm 后间隔 30s 再 Probe 仍命中；可选 70s 过期观察（soft）
+
+```bash
+# 全量（1600 请求，约 1–1.3 小时）
+python run_tests.py k31selfstress1 --base-url https://vendor/v1 --api-key sk-xxx --model kimi-k3.1
+# Checklist 快速口径（16k/64k/100k 各 10 次，约 10 分钟）
+python run_tests.py k31selfstress1 --base-url ... --api-key ... --quick
+# 只跑单场景 / 自定义配置
+python run_tests.py k31selfstress1 --base-url ... --api-key ... --scenario cache --config my_cfg.yaml
+```
+
+- 参数：`k31selfstress1/config.yaml` 为唯一配置源（阈值只走 yaml）；CLI 覆盖 `--concurrency/--samples-per-tier/--quick/--cache-rounds/--ttl-wait-s/--scenario/--config`
+- 产出：`reports/k31selfstress1/<时间戳>/<model>_selfstress1_report_<时间戳>.html`（总判定矩阵 + TTFT 分档表与时序散点 + TPOT 指标与直方图 + 缓存命中率/TTL 表 + 异常样本）+ `summary.json` + `metrics.jsonl`
+- 判定失败退出码非 0；Jenkins：`SUITE=k31selfstress1`（参数 `PERF_SCENARIO/PERF_QUICK/PERF_CONCURRENCY/PERF_SAMPLES_PER_TIER`）
+
 ## 压力测试（stress）
 
 按客户需求文档合同指标实现（TTFT 五档、OTPS>30/1%、立即 429、10min 窗口 SLA、质量四项、24h 平台）：
@@ -216,6 +241,7 @@ python run_tests.py stress --base-url https://vendor/v1 --api-key sk-xxx --model
 |---|---|
 | `SUITE=engineering` | 工程验收（pytest），参数：`ENG_FILTER`（-k 过滤）、`INCLUDE_HEAVY`、`OFFICIAL_*`、`COMPARE_OFFICIAL`（官方双跑对比，默认关）、`COMPARE_FILTER`（对比范围，空=全量，示例 `"test_05 or test_12"`） |
 | `SUITE=k31selfcheck1` / `SUITE=k31selfcheck2` | 供应商自测基线 / 模型接入功能测试（对外版 3.1/3.2），参数：`ENG_FILTER`、`VENDOR_INCLUDE_HEAVY`（heavy 用例）、`OFFICIAL_*`（官方对照） |
+| `SUITE=k31selfstress1` | K3.1-Pro 性能基线（TTFT/TPOT/缓存），参数：`PERF_SCENARIO`（all/ttft/cache）、`PERF_QUICK`（Checklist 快测）、`PERF_CONCURRENCY`、`PERF_SAMPLES_PER_TIER` |
 | `SUITE=stress` | 压力测试，参数：`STRESS_PHASE`、`AGREED_*`、`LOAD_THRESHOLD_TPM`、`PLATFORM_DURATION`（默认 86400=24h，与套件原始默认一致；短时验证显式填小）、`SPIKE_*`、`WINDOW_S`、`PROMPT_SCALE`、`RAMP_STAGES` |
 
 流水线执行（master → SSH 远程测试机）：打印参数 → API 连通性预检（失败即终止后续）→ 环境检查（清残留进程 / git pull 并**记录代码版本** / uv venv / engineering 数据文件检查）→ 按 SUITE 运行 → 报告拉取 → 邮件（**正文仅汇总统计 + 测试代码版本，报告 HTML 以原格式作为附件发送；git pull 失败时邮件醒目告警**）→ 保留最近 20 构建。报告输出在远程机 `builds/<suite>/<tester>/<model>/<构建号>/`（engineering 与 stress 分目录）。

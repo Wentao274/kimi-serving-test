@@ -1,0 +1,46 @@
+# Kimi-K3.1-Pro 性能基线测试配置（k31selfstress1）
+# 判定阈值唯一出处：原厂基线与达标线来自《Kimi-K3.1-Pro 供应商自测基线标准》三/四/五章。
+# 优先级：CLI 参数 > 本文件。阈值（baselines/tpot_limits/hit_rate_limit 等）仅在本文件维护。
+
+model: kimi-k3.1                  # 被测模型（CLI --model 覆盖）
+timeout_s: 300                    # 单请求读超时
+
+report:
+  base_dir: reports               # 产出 reports/k31selfstress1/<时间戳>/
+
+ttft_tpot:                        # 场景一：TTFT（三章）+ TPOT（四章）
+  enabled: true
+  max_tokens: 256                 # 输出长度（文档规定）
+  include_usage: true             # stream_options.include_usage（精确 TPOT + cached_tokens=0 冷请求证明）
+  concurrency: 8                  # 并发数（低并发避免排队污染 TTFT）
+  samples_per_tier: 320           # 每档请求数（文档 n≈316~360）
+  quick_mode: false               # true=Checklist 口径：quick_tiers × quick_samples
+  quick_samples: 10
+  quick_tiers_tokens: [16000, 64000, 100000]
+  min_valid_ratio: 0.9            # 档成功样本 <90% 计划数 → 该档 FAIL（证据不足）
+  tiers:                          # 输入长度分档（tokens，target=档内目标长度）
+    - {name: "2k-20k",   min: 2000,   max: 20000,  target: 10000}
+    - {name: "20k-50k",  min: 20000,  max: 50000,  target: 35000}
+    - {name: "50k-80k",  min: 50000,  max: 80000,  target: 65000}
+    - {name: "80k-130k", min: 80000,  max: 130000, target: 100000}
+    - {name: "130k+",    min: 130000, max: 200000, target: 140000}
+  baselines:                      # 原厂基线与达标线（ms）
+    "2k-20k":   {avg: 2641,  p90: 3848,  avg_limit: 3434,  p90_limit: 5772}
+    "20k-50k":  {avg: 3910,  p90: 6218,  avg_limit: 5083,  p90_limit: 9327}
+    "50k-80k":  {avg: 5775,  p90: 8115,  avg_limit: 7508,  p90_limit: 12173}
+    "80k-130k": {avg: 7451,  p90: 10357, avg_limit: 9687,  p90_limit: 15536}
+    "130k+":    {avg: 11017, p90: 14508, avg_limit: 14323, p90_limit: 21762}
+  tpot_limits: {avg: 33, p50: 38, p90: 46}   # ms
+
+cache:                            # 场景二：缓存基线（五章）
+  enabled: true
+  warm_tokens: 70000              # warm 前缀长度（~70k tokens）
+  warm_max_tokens: 16
+  probe_max_tokens: 64
+  hit_rate_rounds: 5              # 命中率轮次
+  hit_rate_limit: 0.85            # 达标线（≥85%）
+  hit_rate_reference: 0.80        # 方法节参考线（报告并列展示）
+  ttl_rounds: 3                   # TTL 轮次
+  ttl_wait_s: 30                  # 达标 ≥30s 仍命中
+  ttl_min_hit_rate: 0.80          # TTL probe 命中率下限
+  ttl_expire_probe_s: 70          # 过期观察点（soft 记录；0=关闭）

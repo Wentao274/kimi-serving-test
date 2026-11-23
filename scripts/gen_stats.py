@@ -6,6 +6,7 @@
 
 - engineering / k31selfcheck1 / k31selfcheck2：读取 <out_dir>/<suite>/<时间戳>/report_data.json（取最新）的 summary；
 - stress：读取 <out_dir>/stress/<时间戳>/summary.json（取最新）的判定结果；
+- k31selfstress1：读取 <out_dir>/k31selfstress1/<时间戳>/summary.json 的 stats 汇总；
 - RESULT 以测试进程退出码为准（0=PASS，非 0=FAIL）。
 """
 
@@ -64,9 +65,31 @@ def stats_stress(out_dir: str) -> dict:
     }
 
 
+def stats_selfstress(out_dir: str) -> dict:
+    path = latest(os.path.join(out_dir, "k31selfstress1", "*", "summary.json"))
+    if not path:
+        return {}
+    with open(path, encoding="utf-8") as f:
+        summary = json.load(f)
+    s = summary.get("stats") or {}
+    return {
+        "total": s.get("total", 0),
+        "passed": s.get("passed", 0),
+        "failed": s.get("failed", 0),
+        "skipped": 0,
+        "errors": 0,
+        "rate": s.get("rate", 0.0),
+    }
+
+
 def main() -> int:
     out_dir, suite, exit_code = sys.argv[1], sys.argv[2], int(sys.argv[3])
-    stats = stats_stress(out_dir) if suite == "stress" else stats_engineering(out_dir, suite)
+    if suite == "stress":
+        stats = stats_stress(out_dir)
+    elif suite == "k31selfstress1":
+        stats = stats_selfstress(out_dir)
+    else:
+        stats = stats_engineering(out_dir, suite)
     stats["result"] = "PASS" if exit_code == 0 else "FAIL"
     stats["suite"] = suite
 

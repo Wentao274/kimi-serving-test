@@ -32,6 +32,7 @@ SUITES = {
 # 独立运行器套件（非 pytest）：suite 名 -> (模块, main 函数名)
 CUSTOM_SUITES = {
     "stress": ("stress.run_stress", "main"),
+    "k31selfstress1": ("k31selfstress1.run_perf", "main"),  # K3.1-Pro 性能基线（TTFT/TPOT/缓存）
 }
 
 

@@ -40,6 +40,19 @@ if [ "${SUITE}" = "engineering" ] || [ "${SUITE}" = "k31selfcheck1" ] || [ "${SU
     if [ -n "${OFFICIAL_MODEL:-}" ]; then
         ARGS+=(--official-model "${OFFICIAL_MODEL}")
     fi
+elif [ "${SUITE}" = "k31selfstress1" ]; then
+    if [ "${PERF_QUICK:-false}" = "true" ]; then
+        ARGS+=(--quick)
+    fi
+    if [ -n "${PERF_SCENARIO:-}" ]; then
+        ARGS+=(--scenario "${PERF_SCENARIO}")
+    fi
+    if [ -n "${PERF_CONCURRENCY:-}" ]; then
+        ARGS+=(--concurrency "${PERF_CONCURRENCY}")
+    fi
+    if [ -n "${PERF_SAMPLES_PER_TIER:-}" ]; then
+        ARGS+=(--samples-per-tier "${PERF_SAMPLES_PER_TIER}")
+    fi
 elif [ "${SUITE}" = "stress" ]; then
     ARGS+=(--phase "${STRESS_PHASE:-full}")
     ARGS+=(--agreed-concurrency "${AGREED_CONCURRENCY:-50}")
@@ -56,7 +69,7 @@ elif [ "${SUITE}" = "stress" ]; then
         ARGS+=(--ramp-stages "${RAMP_STAGES}")
     fi
 else
-    echo "未知 SUITE: ${SUITE}（支持 engineering / k31selfcheck1 / k31selfcheck2 / stress）" >&2
+    echo "未知 SUITE: ${SUITE}（支持 engineering / k31selfcheck1 / k31selfcheck2 / k31selfstress1 / stress）" >&2
     exit 2
 fi
 

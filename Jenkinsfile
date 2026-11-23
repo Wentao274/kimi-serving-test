@@ -9,7 +9,7 @@ pipeline {
     }
 
     parameters {
-        choice(name: 'SUITE', choices: ['engineering', 'k31selfcheck1', 'k31selfcheck2', 'stress'], description: '测试套件：engineering=工程验收（条目 #1-#10+补充条目，pytest）；k31selfcheck1=K3.1-Pro 供应商自测基线（功能兼容性 14 项，pytest）；k31selfcheck2=模型接入要求（对外版）功能测试 3.1/3.2 共 29 项（pytest）；stress=压力测试（P0基线→P1爬坡→P2平台→P3脉冲）')
+        choice(name: 'SUITE', choices: ['engineering', 'k31selfcheck1', 'k31selfcheck2', 'k31selfstress1', 'stress'], description: '测试套件：engineering=工程验收（条目 #1-#10+补充条目，pytest）；k31selfcheck1=K3.1-Pro 供应商自测基线（功能兼容性 14 项，pytest）；k31selfcheck2=模型接入要求（对外版）功能测试 3.1/3.2 共 29 项（pytest）；k31selfstress1=K3.1-Pro 性能基线（TTFT/TPOT/缓存）；stress=压力测试（P0基线→P1爬坡→P2平台→P3脉冲）')
         string(name: 'TESTER', defaultValue: 'liwt', description: '测试人员名称（必填）')
         string(name: 'MODEL', defaultValue: 'kimi-k3.1', description: '被测供应商模型名（必填，即 /v1/models 返回的 id 或供应商约定名）')
         string(name: 'BASE_URL', defaultValue: 'https://vendor.example.com', description: '供应商 API 根地址（必填，可不带 /v1，流水线自动拼接）')
@@ -24,6 +24,10 @@ pipeline {
         string(name: 'OFFICIAL_MODEL', defaultValue: '', description: '工程验收（可选）：官方模型名')
         booleanParam(name: 'COMPARE_OFFICIAL', defaultValue: false, description: '工程验收：开启后全量用例在官方渠道再跑一遍并逐用例对比（默认不比对；需配置 OFFICIAL_*）')
         string(name: 'COMPARE_FILTER', defaultValue: '', description: '对比模式的用例范围（pytest -k 表达式，空=全量；设置后两侧均按此范围执行以保证口径一致。示例："test_05 or test_12" 只对比图片用例与 OpenClaw 用例；"test_05" 只对比图片用例）')
+        choice(name: 'PERF_SCENARIO', choices: ['all', 'ttft', 'cache'], description: '性能基线（k31selfstress1）：运行场景（all=TTFT/TPOT+缓存）')
+        booleanParam(name: 'PERF_QUICK', defaultValue: false, description: '性能基线（k31selfstress1）：Checklist 快速口径（16k/64k/100k 各 10 次，约 10 分钟）')
+        string(name: 'PERF_CONCURRENCY', defaultValue: '', description: '性能基线（k31selfstress1，可选）：并发数（空=config.yaml 默认 8）')
+        string(name: 'PERF_SAMPLES_PER_TIER', defaultValue: '', description: '性能基线（k31selfstress1，可选）：每档请求数（空=config.yaml 默认 320）')
 
         // ---------------- 压力测试（SUITE=stress 时生效） ----------------
         choice(name: 'STRESS_PHASE', choices: ['full', 'baseline', 'ramp', 'platform', 'spike'], description: '压测阶段：full=P0基线→P1爬坡→P2平台→P3脉冲全流程')
@@ -85,7 +89,12 @@ pipeline {
                     } else if (params.SUITE == 'k31selfcheck1' || params.SUITE == 'k31selfcheck2') {
                         println("用例过滤:     ${params.ENG_FILTER ?: '(全量)'}")
                         println("供应商重负载: ${params.VENDOR_INCLUDE_HEAVY}")
-                        println("官方对照:     ${params.OFFICIAL_BASE_URL ? params.OFFICIAL_BASE_URL : '(不启用)'}")
+                        println("官方渠道:     ${params.OFFICIAL_BASE_URL ? params.OFFICIAL_BASE_URL : '(未配置)'}")
+                    } else if (params.SUITE == 'k31selfstress1') {
+                        println("性能场景:     ${params.PERF_SCENARIO ?: 'all'}")
+                        println("快速模式:     ${params.PERF_QUICK}")
+                        println("并发数:       ${params.PERF_CONCURRENCY ?: '(config.yaml 默认)'}")
+                        println("每档样本:     ${params.PERF_SAMPLES_PER_TIER ?: '(config.yaml 默认)'}")
                     } else {
                         println("压测阶段:     ${params.STRESS_PHASE}")
                         println("约定并发:     ${params.AGREED_CONCURRENCY}")
@@ -358,6 +367,40 @@ ENDSSH"""
             }
         }
 
+        stage('运行性能基线测试(k31selfstress1)') {
+            when {
+                expression { env.CONNECTIVITY_FAILED != 'true' && params.SUITE == 'k31selfstress1' }
+            }
+            steps {
+                script {
+                    def apiKey = params.API_KEY?.toString()?.trim()
+                    if (!apiKey) { apiKey = 'EMPTY' }
+                    sshagent(credentials: ["${SSH_CREDENTIALS}"]) {
+                        catchError(buildResult: 'UNSTABLE', stageResult: 'FAILURE') {
+                            sh """
+ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${REMOTE_HOST} << 'ENDSSH'
+set -e
+cd ${params.WORK_DIR}
+mkdir -p ${BUILD_OUTPUT_DIR}
+
+export SUITE="k31selfstress1"
+export KST_BASE_URL="${env.BASE_URL_V1}"
+export KST_API_KEY="${apiKey}"
+export KST_MODEL="${params.MODEL}"
+export KST_OUT_DIR="${params.WORK_DIR}/${BUILD_OUTPUT_DIR}"
+export PERF_SCENARIO="${params.PERF_SCENARIO}"
+export PERF_QUICK="${params.PERF_QUICK}"
+export PERF_CONCURRENCY="${params.PERF_CONCURRENCY}"
+export PERF_SAMPLES_PER_TIER="${params.PERF_SAMPLES_PER_TIER}"
+
+bash scripts/run_suite.sh
+ENDSSH"""
+                        }
+                    }
+                }
+            }
+        }
+
         stage('官方渠道对比执行') {
             when {
                 expression { env.CONNECTIVITY_FAILED != 'true' && params.SUITE == 'engineering' && params.COMPARE_OFFICIAL }
@@ -521,7 +564,7 @@ fi
 <p>逐用例对比见附件 <strong>*_compare_*.html</strong>；两侧完整报告见附件（供应商 对比报告 *_compare_*.html）。</p>"""
                         }
 
-                        def reportFile = sh(script: "ls reports/${BUILD_NUMBER}/engineering/*/*_report_*.html reports/${BUILD_NUMBER}/stress/*/*_stress_report_*.html reports/${BUILD_NUMBER}/k31selfcheck1/*/*_selfcheck1_report_*.html reports/${BUILD_NUMBER}/k31selfcheck2/*/*_selfcheck2_report_*.html 2>/dev/null | head -1", returnStdout: true).trim()
+                        def reportFile = sh(script: "ls reports/${BUILD_NUMBER}/engineering/*/*_report_*.html reports/${BUILD_NUMBER}/stress/*/*_stress_report_*.html reports/${BUILD_NUMBER}/k31selfcheck1/*/*_selfcheck1_report_*.html reports/${BUILD_NUMBER}/k31selfcheck2/*/*_selfcheck2_report_*.html reports/${BUILD_NUMBER}/k31selfstress1/*/*_selfstress1_report_*.html 2>/dev/null | head -1", returnStdout: true).trim()
 
                         // 报告 HTML 以原格式作为附件发送，邮件正文只保留汇总统计（不内嵌报告，避免邮件客户端破坏样式）
                         def fallbackStyle = "body { font-family: 'Segoe UI', 'Microsoft YaHei', Arial, sans-serif; margin: 0 auto; max-width: 1080px; padding: 20px 32px; color: #1f2937; background: #eef1f6; font-size: 14px; line-height: 1.7; }\ntable { border-collapse: collapse; width: 100%; margin: 14px 0 18px; background: #ffffff; font-size: 13px; border: 1px solid #d8dfeb; }\nth { background: #e3edfc; color: #1e3a8a; font-weight: 600; }\nth, td { border: 1px solid #d8dfeb; padding: 6px 12px; text-align: left; vertical-align: top; }\n.email-footer { margin-top: 24px; padding: 12px 15px; background-color: #f9f9f9; border-radius: 3px; color: #666; font-size: 12px; }"
@@ -532,7 +575,8 @@ fi
                         def bannerColor = (resultLabel == 'PASS') ? '#4CAF50' : '#f44336'
                         def suiteLabel = (params.SUITE == 'engineering') ? '工程验收'
                             : (params.SUITE == 'k31selfcheck1') ? 'K3.1-Pro自测'
-                            : (params.SUITE == 'k31selfcheck2') ? '模型接入功能测试' : '压力测试'
+                            : (params.SUITE == 'k31selfcheck2') ? '模型接入功能测试'
+                            : (params.SUITE == 'k31selfstress1') ? '性能基线' : '压力测试'
 
                         def suiteParamsRows = ''
                         if (params.SUITE == 'engineering' || params.SUITE == 'k31selfcheck1' || params.SUITE == 'k31selfcheck2') {
@@ -542,6 +586,12 @@ fi
     <tr><th>用例总数</th><td>${stats.total ?: 'N/A'}</td></tr>
     <tr><th>通过 / 失败</th><td>${stats.passed ?: 'N/A'} / ${stats.failed ?: 'N/A'}</td></tr>
     <tr><th>跳过 / 错误</th><td>${stats.skipped ?: 'N/A'} / ${stats.errors ?: 'N/A'}</td></tr>"""
+                        } else if (params.SUITE == 'k31selfstress1') {
+                            suiteParamsRows = """
+    <tr><th>性能场景</th><td>${params.PERF_SCENARIO}</td></tr>
+    <tr><th>快速模式</th><td>${params.PERF_QUICK}</td></tr>
+    <tr><th>总请求数</th><td>${stats.total ?: 'N/A'}</td></tr>
+    <tr><th>判定通过 / 失败</th><td>${stats.passed ?: 'N/A'} / ${stats.failed ?: 'N/A'}</td></tr>"""
                         } else {
                             suiteParamsRows = """
     <tr><th>压测阶段</th><td>${params.STRESS_PHASE}</td></tr>
@@ -595,6 +645,7 @@ ${reportFile && fileExists(reportFile) ? '<p>详细测试报告（原始 HTML �
                         attachPatterns.add("reports/${BUILD_NUMBER}/stress/*/*_stress_report_*.html")
                         attachPatterns.add("reports/${BUILD_NUMBER}/k31selfcheck1/*/*_selfcheck1_report_*.html")
                         attachPatterns.add("reports/${BUILD_NUMBER}/k31selfcheck2/*/*_selfcheck2_report_*.html")
+                        attachPatterns.add("reports/${BUILD_NUMBER}/k31selfstress1/*/*_selfstress1_report_*.html")
                         }
                         attachPatterns.add("reports/${BUILD_NUMBER}/official/engineering/*/*_report_*.html")
                         attachPatterns.add("reports/${BUILD_NUMBER}/*_compare_*.html")
