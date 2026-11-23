@@ -14,15 +14,17 @@ Kimi model serving verify test — K3.1 流量外采供应商 Serving 验收测�
 │   ├── core/               #   框架：配置 / HTTP 客户端 / 用例记录 / HTML 报告
 │   ├── data/               #   附件用例（本地放置，不入库，见「数据文件准备」）
 │   └── tests/              #   test_00–test_13（编号 = 截图条目号；#7/#9/#10 为 pending 占位）
-├── k31selfcheck1/          # K3.1-Pro 供应商自测基线（功能兼容性 14 项，三协议 Chat/Responses/Messages）
-│   ├── protocols.py        #   三协议客户端（含 SSE 事件采集）
-│   └── tests/              #   test_k01–test_k14（编号 = 基线测试点序号）
-├── k31selfcheck2/          # 模型接入要求（对外版）功能测试（3.1/3.2，92 用例）
-│   └── tests/              #   test_31_xx / test_32_xx（编号 = 文档测试点序号）
-├── k31selfstress1/         # K3.1-Pro 性能基线（TTFT 五档 / TPOT / 缓存基线，三场景合一报告）
-│   ├── config.yaml         #   全部测试参数（阈值唯一出处，CLI 覆盖常用项）
-│   ├── run_perf.py         #   CLI 入口
-│   └── core/               #   配置 / 异步流式客户端 / 数据集 / 两场景 / 判定 / 报告
+├── k31test/
+│   ├── function-test/      # 功能测试（pytest；共享 k31basesuite.plugin 框架）
+│   │   ├── k31selfcheck1/  #   K3.1-Pro 供应商自测基线（14 项，三协议 Chat/Responses/Messages）
+│   │   ├── k31selfcheck2/  #   模型接入要求（对外版）功能测试（3.1/3.2）
+│   │   ├── k31selfcheck3/  #   K3.1 功能与兼容性测试（指令遵循/孤儿tool/一致性/知识库/安全围栏/超时异常）
+│   │   └── k31basesuite/   #   公共基础用例集（两套件交集 17 模块，高覆盖版；plugin.py 共享框架）
+│   └── stress-test/
+│       └── k31selfstress1/ #   K3.1-Pro 性能基线（TTFT 五档 / TPOT / 缓存基线，三场景合一报告）
+│           ├── config.yaml #     全部测试参数（阈值唯一出处，CLI 覆盖常用项）
+│           ├── run_perf.py #     CLI 入口
+│           └── core/       #     配置 / 异步流式客户端 / 数据集 / 两场景 / 判定 / 报告
 ├── stress/                 # 压力测试（P0 基线→P1 爬坡→P2 平台→P3 脉冲）
 │   ├── run_stress.py       #   CLI 入口
 │   └── core/               #   合同阈值 / 流量模型 / 异步引擎 / 窗口聚合判定 / 报告
@@ -192,6 +194,52 @@ python run_tests.py k31selfcheck2 --base-url ... --api-key ... --model ... --inc
 - Token 计数官方对照需 `--official-base-url/--official-api-key/--official-model`（未配置则该用例跳过）
 - Jenkins：`SUITE=k31selfcheck2` 直接触发（同一 Jenkinsfile）
 
+## 公共基础用例集（k31basesuite）
+
+k31selfcheck1 与 k31selfcheck2 的**交集测试点**（17 模块，取高覆盖版本），物理位于
+`k31test/function-test/k31basesuite/tests/`，三个套件按有序清单共享执行：
+
+- 执行 `k31selfcheck2`：28 个用例文件 = 11 自有 + 17 公共（原位交错，**用例数 92 不变**）
+- 执行 `k31selfcheck1`：31 个用例文件 = 14 自有（三协议完整覆盖）+ 17 公共（chat 公共面补充）
+- 执行 `k31basesuite`：仅 17 个公共模块（64 用例），可独立回归
+
+公共测试点：thinking/max_tokens/采样参数(top_p/temperature/frequency/presence)/流式/stream_options/
+结构化输出/工具调用/鉴权与错误/输入边界·stop/Token 对齐/usage·缓存。
+
+框架机制：`run_tests.py` 按套件组装有序文件清单并注入 `-p k31basesuite.plugin`
+（统一选项注册、共享 fixtures、单一 Collector、按 `KST_ACTIVE_SUITE` 写各套件报告），
+各套件报告仍落于 `reports/<suite>/<时间戳>/`，内容含自有+公共全部用例。
+
+```bash
+python run_tests.py k31basesuite --base-url https://vendor/v1 --api-key sk-xxx --model kimi-k3.1
+```
+
+- 报告：`reports/k31basesuite/<时间戳>/<model>_basesuite_report_<时间戳>.html` + `report_data.json`
+- Jenkins：`SUITE=k31basesuite` 直接触发（同一 Jenkinsfile）
+
+## K3.1 功能与兼容性测试（k31selfcheck3）
+
+新客户需求清单（指令遵循 / stop·结束事件 / tool choice / 孤儿 tool 消息 / 响应一致性 /
+知识库探测 / 超时与异常 / 安全围栏）：6 个自有模块 + k31basesuite 公共 17 模块共享执行，共 86 用例。
+
+| 需求项 | 覆盖 |
+|---|---|
+| 指令遵循 | 自有 33_01（JSON/列表/长度/必含词/禁用词约束，程序化判定） |
+| stop·结束事件 | 公共 32_10 + 32_08 + 32_12 |
+| tool choice 工具调用 | 公共 31_08 |
+| 孤儿 tool 消息 | 自有 33_02（无匹配 id/无前置/重复回填 → 4xx；合法回填对照） |
+| 响应一致性 | 自有 33_03（流式vs非流式/重复/并发，seed 一致性记录） |
+| 知识库探测 | 自有 33_04（截止时间探针/超范围不编造/口径一致） |
+| 超时与异常 | 公共 32_14 + 自有 33_06（损坏 JSON/错误 Content-Type/短超时后可用性） |
+| 安全围栏 | 自有 33_05（恶意/爆炸物/越狱 DAN 拒答 + 正常安全类不误伤） |
+
+```bash
+python run_tests.py k31selfcheck3 --base-url https://vendor/v1 --api-key sk-xxx --model kimi-k3.1
+```
+
+- 报告：`reports/k31selfcheck3/<时间戳>/<model>_selfcheck3_report_<时间戳>.html` + `report_data.json`
+- Jenkins：`SUITE=k31selfcheck3` 直接触发（同一 Jenkinsfile）
+
 ## K3.1-Pro 性能基线（k31selfstress1）
 
 依据《Kimi-K3.1-Pro 供应商自测基线标准》三/四/五章实现，三场景结果合入同一份性能报告：
@@ -240,7 +288,7 @@ python run_tests.py stress --base-url https://vendor/v1 --api-key sk-xxx --model
 | 方式 | 说明 |
 |---|---|
 | `SUITE=engineering` | 工程验收（pytest），参数：`ENG_FILTER`（-k 过滤）、`INCLUDE_HEAVY`、`OFFICIAL_*`、`COMPARE_OFFICIAL`（官方双跑对比，默认关）、`COMPARE_FILTER`（对比范围，空=全量，示例 `"test_05 or test_12"`） |
-| `SUITE=k31selfcheck1` / `SUITE=k31selfcheck2` | 供应商自测基线 / 模型接入功能测试（对外版 3.1/3.2），参数：`ENG_FILTER`、`VENDOR_INCLUDE_HEAVY`（heavy 用例）、`OFFICIAL_*`（官方对照） |
+| `SUITE=k31selfcheck1` / `k31selfcheck2` / `k31selfcheck3` / `k31basesuite` | 供应商自测基线 / 模型接入功能测试（对外版 3.1/3.2）/ 功能与兼容性测试 / 公共基础用例集，参数：`ENG_FILTER`、`VENDOR_INCLUDE_HEAVY`（heavy 用例）、`OFFICIAL_*`（官方对照） |
 | `SUITE=k31selfstress1` | K3.1-Pro 性能基线（TTFT/TPOT/缓存），参数：`PERF_SCENARIO`（all/ttft/cache）、`PERF_QUICK`（Checklist 快测）、`PERF_CONCURRENCY`、`PERF_SAMPLES_PER_TIER` |
 | `SUITE=stress` | 压力测试，参数：`STRESS_PHASE`、`AGREED_*`、`LOAD_THRESHOLD_TPM`、`PLATFORM_DURATION`（默认 86400=24h，与套件原始默认一致；短时验证显式填小）、`SPIKE_*`、`WINDOW_S`、`PROMPT_SCALE`、`RAMP_STAGES` |
 

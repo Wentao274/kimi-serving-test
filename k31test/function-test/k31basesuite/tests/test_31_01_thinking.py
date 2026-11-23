@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import pytest
 
-from k31selfcheck2.tests._common import expect_common_ok, send
+from k31basesuite.tests._common import expect_common_ok, send
 
 _MESSAGES = [{"role": "user", "content": "9.11 和 9.9 哪个大？简要回答。"}]
 _EFFORTS = ["low", "high", "max"]

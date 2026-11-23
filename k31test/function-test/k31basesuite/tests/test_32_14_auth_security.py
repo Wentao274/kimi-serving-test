@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from k31selfcheck2.tests._common import error_body, error_message
+from k31basesuite.tests._common import error_body, error_message
 
 _MESSAGES = [{"role": "user", "content": "hi"}]
 _BAD_KEY = "Bearer sk-invalid-key-0123456789abcdef"

@@ -220,7 +220,7 @@ __marimo__/
 .streamlit/secrets.toml
 
 # ===== 测试结果输出（所有套件）=====
-# 报告根目录：reports/<suite>/<时间戳>/（engineering/k31selfcheck1/k31selfcheck2/stress/k31selfstress1）
+# 报告根目录：reports/<suite>/<时间戳>/（engineering/k31selfcheck1/k31selfcheck2/k31basesuite/stress/k31selfstress1）
 # （含 report.html / report_data.json / windows.json / metrics.jsonl /
 #   summary.json / quality_incidents.json 等全部运行产物）
 reports/

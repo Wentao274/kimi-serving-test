@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from k31selfcheck2.tests._common import (error_body, error_message, expect_4xx,
+from k31basesuite.tests._common import (error_body, error_message, expect_4xx,
                                           expect_common_ok, make_long_text, send)
 
 _IN_LIMIT_PROMPT = make_long_text(130_000)

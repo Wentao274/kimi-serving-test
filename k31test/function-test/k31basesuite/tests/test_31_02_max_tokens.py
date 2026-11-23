@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import pytest
 
-from k31selfcheck2.tests._common import expect_4xx, expect_common_ok, send
+from k31basesuite.tests._common import expect_4xx, expect_common_ok, send
 
 _OFFICIAL_DEFAULT_MAX_TOKENS = 131072
 

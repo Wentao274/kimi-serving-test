@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from k31selfcheck2.tests._common import expect_common_ok, send
+from k31basesuite.tests._common import expect_common_ok, send
 
 _TEXT = "人工智能正在改变世界。请用三句话介绍机器学习、深度学习与大语言模型之间的关系。"
 

@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import json
 
-from k31selfcheck2.tests._common import expect_common_ok, send
+from k31basesuite.tests._common import expect_common_ok, send
 
 _DISH_SCHEMA = {
     "type": "object",

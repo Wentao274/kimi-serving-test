@@ -1,8 +1,16 @@
-"""k31selfcheck2 pytest 配置：模型接入要求（对外版）功能测试（3.1/3.2）。"""
+"""k31test/function-test 共享 pytest 框架（插件形式，经 run_tests.py 以 -p 注入）。
+
+为 k31selfcheck1 / k31selfcheck2 / k31basesuite 提供统一的：
+- 命令行选项注册（--base-url/--api-key/--model/--official-*/--timeout/--include-heavy/--report-dir）
+- 共享 fixtures：settings / client / official_client / collector / rec
+- 单一 Collector 与报告写出：按环境变量 KST_ACTIVE_SUITE 决定报告目录名、
+  文件名与标题（各套件运行产出各自报告，公共用例照常计入）。
+"""
 
 from __future__ import annotations
 
 import json
+import os
 import time
 from pathlib import Path
 
@@ -12,16 +20,46 @@ from engineering.core.client import VendorClient
 from engineering.core.config import Settings, from_pytest_config
 from engineering.core.recorder import CaseRecord, Collector
 from engineering.core.report import render_html
+from k31basesuite.module_titles import MODULE_TITLES
 
 SETTINGS: Settings | None = None
 COLLECTOR: Collector | None = None
 
+# 套件报告元信息：目录名 / 报告文件标识 / 标题
+SUITE_META = {
+    "k31selfcheck1": {
+        "title": "K3.1-Pro 供应商自测基线（功能兼容性）",
+        "file_tag": "selfcheck1_report",
+        "protocol_list": True,   # 报告 meta 含三协议支持清单（依据 k01 探测）
+    },
+    "k31selfcheck2": {
+        "title": "模型接入要求（对外版）功能测试（3.1/3.2）",
+        "file_tag": "selfcheck2_report",
+        "protocol_list": False,
+    },
+    "k31selfcheck3": {
+        "title": "K3.1 功能与兼容性测试（指令遵循/孤儿tool/一致性/知识库/安全围栏/超时异常）",
+        "file_tag": "selfcheck3_report",
+        "protocol_list": False,
+    },
+    "k31basesuite": {
+        "title": "K3.1 公共基础用例集（k31basesuite）",
+        "file_tag": "basesuite_report",
+        "protocol_list": False,
+    },
+}
+
+
+def _active_suite() -> str:
+    suite = os.environ.get("KST_ACTIVE_SUITE", "k31basesuite")
+    return suite if suite in SUITE_META else "k31basesuite"
+
 
 def pytest_addoption(parser):
-    group = parser.getgroup("k31selfcheck2", "模型接入要求（对外版）功能测试 3.1/3.2")
+    group = parser.getgroup("k31basesuite", "K3.1 功能测试共享框架（function-test）")
     group.addoption("--base-url", default=None, help="供应商 API base url，或 KST_BASE_URL")
     group.addoption("--api-key", default=None, help="供应商 API key，或 KST_API_KEY")
-    group.addoption("--model", default="kimi-k3.1", help="被测模型名，或 KST_MODEL")
+    group.addoption("--model", default=None, help="被测模型名，或 KST_MODEL")
     group.addoption("--official-base-url", default=None, help="官方 API base url（可选，对照用）")
     group.addoption("--official-api-key", default=None, help="官方 API key（可选）")
     group.addoption("--official-model", default=None, help="官方模型名（可选）")
@@ -126,30 +164,54 @@ def pytest_sessionfinish(session, exitstatus):
             collector.add(pending)
     collector.finish()
 
+    suite = _active_suite()
+    smeta = SUITE_META[suite]
     stamp = time.strftime("%Y%m%d_%H%M%S")
-    out_dir = Path(settings.report_dir if settings else "reports") / "k31selfcheck2" / stamp
+    out_dir = Path(settings.report_dir if settings else "reports") / suite / stamp
     out_dir.mkdir(parents=True, exist_ok=True)
 
     data_path = out_dir / "report_data.json"
-    safe_model = "".join(c if (c.isalnum() or c in "._-") else "_" for c in (settings.model if settings else "model"))
-    html_path = out_dir / f"{safe_model}_selfcheck2_report_{stamp.replace('_', '')}.html"
+    safe_model = "".join(c if (c.isalnum() or c in "._-") else "_"
+                         for c in (settings.model if settings else "model"))
+    html_path = out_dir / f"{safe_model}_{smeta['file_tag']}_{stamp.replace('_', '')}.html"
+
+    # 部署版本（若响应头含 X-Msh-ProviderDeployId 则记录）
+    deploy_id = ""
+    for r in collector.records:
+        headers = (r.extra or {}).get("response_headers") or {}
+        deploy_id = headers.get("x-msh-providerdeployid", "")
+        if deploy_id:
+            break
 
     meta = {
         "模型": settings.model if settings else "?",
+        "部署版本": deploy_id or "（响应头未返回 X-Msh-ProviderDeployId）",
         "Endpoint": settings.base_url if settings else "?",
         "开始时间": collector.started_at,
         "结束时间": collector.finished_at,
         "含重负载用例": "是" if (settings and settings.include_heavy) else "否",
     }
+    if smeta.get("protocol_list"):
+        proto_support = {"Chat": "未测"}
+        for r in collector.records:
+            cid = r.case_id
+            if "test_k01_chat" in cid:
+                proto_support["Chat"] = "开放" if r.outcome == "passed" else f"异常({r.outcome})"
+            elif "test_k01_responses" in cid:
+                proto_support["Responses"] = "开放" if r.outcome == "passed" else f"未开放/异常({r.outcome})"
+            elif "test_k01_messages" in cid:
+                proto_support["Messages"] = "开放" if r.outcome == "passed" else f"未开放/异常({r.outcome})"
+        meta["协议支持清单"] = "；".join(f"{k}: {v}" for k, v in proto_support.items())
 
     payload = collector.to_dict()
     payload["meta"] = meta
     data_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
-    html_path.write_text(render_html(collector, meta), encoding="utf-8")
+    html_path.write_text(render_html(collector, meta, module_titles=MODULE_TITLES),
+                         encoding="utf-8")
 
     summary = collector.summary()
     print("\n" + "=" * 70)
-    print("模型接入要求（对外版）功能测试（3.1/3.2）报告已生成：")
+    print(f"{smeta['title']} 报告已生成：")
     print(f"  HTML : {html_path}")
     print(f"  JSON : {data_path}")
     print(f"  汇总 : 共 {summary['total']} 例 | 通过 {summary['passed']} | "

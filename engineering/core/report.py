@@ -203,7 +203,8 @@ def _render_case(rec: CaseRecord) -> str:
     return "".join(parts)
 
 
-def render_html(collector: Collector, meta: dict[str, Any]) -> str:
+def render_html(collector: Collector, meta: dict[str, Any],
+                module_titles: dict[str, str] | None = None) -> str:
     summary = collector.summary()
     suites: dict[str, list[CaseRecord]] = {}
     for rec in collector.records:
@@ -235,8 +236,10 @@ def render_html(collector: Collector, meta: dict[str, Any]) -> str:
     suite_blocks = []
     for suite, records in suites.items():
         n_pass = sum(1 for r in records if r.outcome == "passed")
+        short = suite.rsplit(".", 1)[-1]
+        disp = (module_titles or {}).get(short, suite)
         block = [
-            f"<div class='suite-title'>{_esc(suite)} "
+            f"<div class='suite-title'>{_esc(disp)} "
             f"<small style='color:#6b7280'>({n_pass}/{len(records)} 通过)</small></div>"
         ]
         block.extend(_render_case(r) for r in records)

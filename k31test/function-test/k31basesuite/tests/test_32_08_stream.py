@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from k31selfcheck2.tests._common import expect_common_ok, send, sse_chunks
+from k31basesuite.tests._common import expect_common_ok, send, sse_chunks
 
 _MESSAGES = [{"role": "user", "content": "请用三句话介绍机器学习。"}]
 

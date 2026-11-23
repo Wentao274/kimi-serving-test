@@ -5,7 +5,7 @@
 
 from __future__ import annotations
 
-from k31selfcheck2.tests._common import expect_4xx, expect_common_ok, send
+from k31basesuite.tests._common import expect_4xx, expect_common_ok, send
 
 _MESSAGES = [{"role": "user", "content": "用一句话介绍南京。"}]
 

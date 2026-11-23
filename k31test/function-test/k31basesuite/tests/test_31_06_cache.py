@@ -13,7 +13,7 @@ import time
 
 import pytest
 
-from k31selfcheck2.tests._common import expect_common_ok, make_long_text, send
+from k31basesuite.tests._common import expect_common_ok, make_long_text, send
 
 _PREFIX = make_long_text(8000)
 _TTL_WAIT_S = float(os.environ.get("KST_CACHE_TTL_WAIT_S", "310"))
