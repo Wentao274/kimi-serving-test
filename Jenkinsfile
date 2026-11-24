@@ -19,9 +19,9 @@ pipeline {
         string(name: 'ENG_FILTER', defaultValue: '', description: '工程验收：pytest -k 过滤表达式（空=全量），如 "test_05 or test_12"、"test_01"')
         booleanParam(name: 'VENDOR_INCLUDE_HEAVY', defaultValue: false, description: '供应商侧：运行重负载用例（#3 全量 131072 生成约70分钟、#5 千图 flipped）')
         booleanParam(name: 'OFFICIAL_INCLUDE_HEAVY', defaultValue: false, description: '官方侧：运行重负载用例（不开启则官方侧 heavy 用例标记为 SKIPPED 跳过）')
-        string(name: 'OFFICIAL_BASE_URL', defaultValue: '', description: '工程验收（可选）：官方 API 根地址，用于 #4 System Prompt 官方基线对照及 COMPARE_OFFICIAL 双跑')
+        string(name: 'OFFICIAL_BASE_URL', defaultValue: '', description: '工程验收（可选）：官方 API 根地址，格式 https://api.moonshot.cn/v1（不含尾斜杠与 /chat/completions），用于 #4 System Prompt 官方基线对照、k13/31_11 Token 对齐及 COMPARE_OFFICIAL 双跑')
         password(name: 'OFFICIAL_API_KEY', defaultValue: '', description: '工程验收（可选）：官方 API Key')
-        string(name: 'OFFICIAL_MODEL', defaultValue: '', description: '工程验收（可选）：官方模型名')
+        string(name: 'OFFICIAL_MODEL', defaultValue: '', description: '工程验收（可选）：官方模型名（如 kimi-k3.1-pro，注意与供应商侧模型名不同）')
         booleanParam(name: 'COMPARE_OFFICIAL', defaultValue: false, description: '工程验收：开启后全量用例在官方渠道再跑一遍并逐用例对比（默认不比对；需配置 OFFICIAL_*）')
         string(name: 'COMPARE_FILTER', defaultValue: '', description: '对比模式的用例范围（pytest -k 表达式，空=全量；设置后两侧均按此范围执行以保证口径一致。示例："test_05 or test_12" 只对比图片用例与 OpenClaw 用例；"test_05" 只对比图片用例）')
         choice(name: 'PERF_SCENARIO', choices: ['all', 'ttft', 'cache'], description: '性能基线（k31selfstress1）：运行场景（all=TTFT/TPOT+缓存）')
@@ -477,7 +477,7 @@ ENDSSH"""
 
         stage('官方渠道对比执行') {
             when {
-                expression { env.CONNECTIVITY_FAILED != 'true' && params.SUITE == 'engineering' && params.COMPARE_OFFICIAL }
+                expression { env.CONNECTIVITY_FAILED != 'true' && (params.SUITE == 'engineering' || params.SUITE == 'k31selfcheck1') && params.COMPARE_OFFICIAL }
             }
             steps {
                 script {
@@ -496,7 +496,7 @@ set -e
 cd ${params.WORK_DIR}
 mkdir -p ${BUILD_OUTPUT_DIR}/official
 
-export SUITE="engineering"
+export SUITE="${params.SUITE}"
 export KST_BASE_URL="${officialBaseV1}"
 export KST_API_KEY="${officialKey}"
 export KST_MODEL="${params.OFFICIAL_MODEL}"
@@ -506,8 +506,8 @@ export ENG_INCLUDE_HEAVY="${params.OFFICIAL_INCLUDE_HEAVY}"
 
 RC=0
 bash scripts/run_suite.sh || RC=\$?
-# 无论对比执行成败都生成对比报告（set -e 下 run_suite 失败不应阻断 gen_compare）
-python scripts/gen_compare.py ${BUILD_OUTPUT_DIR}
+# 无论对比执行成败都要生成对比报告（set -e，run_suite 失败不应跳过 gen_compare）
+python scripts/gen_compare.py ${BUILD_OUTPUT_DIR} ${params.SUITE}
 echo "official run rc=\${RC}"
 exit \${RC}
 ENDSSH"""
@@ -726,6 +726,7 @@ ${reportFile && fileExists(reportFile) ? '<p>详细测试报告（原始 HTML �
                         attachPatterns.add("reports/${BUILD_NUMBER}/k31selfstress1/*/*_selfstress1_report_*.html")
                         }
                         attachPatterns.add("reports/${BUILD_NUMBER}/official/engineering/*/*_report_*.html")
+                        attachPatterns.add("reports/${BUILD_NUMBER}/official/k31selfcheck1/*/*_selfcheck1_report_*.html")
                         attachPatterns.add("reports/${BUILD_NUMBER}/*_compare_*.html")
 
                         emailext(

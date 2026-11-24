@@ -172,7 +172,7 @@ python run_tests.py k31selfcheck1 \
 - 报告：`reports/k31selfcheck1/<时间戳>/<model>_selfcheck1_report_<时间戳>.html`（与工程验收同格式）+ `report_data.json`
 - 14 个测试点：三协议与响应格式、usage 与缓存计量、常驻思考与推理强度、采样与输出预算、流式状态机、结构化输出、工具调用与多步闭环、错误码、参数与输入边界、可观测性、超时与长任务（heavy）、图片多模态、输入 Token 对齐（需 `--official-*`）、消息历史与思考回填
 - 协议未开放（Responses/Messages 4xx）按基线"不得以其他协议结果替代"记为失败并注明；官方对照需 `--official-base-url/--official-api-key/--official-model`
-- Jenkins：`SUITE=k31selfcheck1` 直接触发（同一 Jenkinsfile)
+- Jenkins：`SUITE=k31selfcheck1` 直接触发（同一 Jenkinsfile)；**支持 `COMPARE_OFFICIAL=true` 官方双跑**——111 例在官方端点再跑一遍，`gen_compare.py` 生成 `<model>_compare_<时间戳>.html` 双通道对比报告 + 邮件"供应商 vs 官方"汇总表（对比附件：`official/k31selfcheck1/*` 与 `*_compare_*.html`）
 
 ## 模型接入功能测试（k31selfcheck2）
 
