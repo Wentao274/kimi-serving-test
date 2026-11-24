@@ -57,7 +57,43 @@ MODULE_TITLES = {
 }
 
 
+# 31_/32_ 共享模块 → 《Kimi-K3.1-Pro 供应商自测基线标准》功能兼容性要求 14 项
+# （用于 k31selfcheck1 / k3selfcheck 报告分组头；k31selfcheck2/k31basesuite 仍用对外版名称）
+BASELINE_TITLES = {
+    "test_31_01_thinking": "常驻思考与推理强度",
+    "test_31_02_max_tokens": "采样与输出预算",
+    "test_31_06_cache": "usage 与缓存计量",
+    "test_31_07_structured_output": "结构化输出",
+    "test_31_08_function_calling": "工具调用与多步闭环",
+    "test_31_11_token_count": "输入 Token 专项对齐",
+    "test_32_01_messages": "参数及输入边界",
+    "test_32_02_messages_elements": "参数及输入边界",
+    "test_32_03_top_p": "采样与输出预算",
+    "test_32_04_frequency_penalty": "采样与输出预算",
+    "test_32_05_presence_penalty": "采样与输出预算",
+    "test_32_06_max_tokens": "采样与输出预算",
+    "test_32_07_input_length": "参数及输入边界",
+    "test_32_08_stream": "流式状态机与完整性",
+    "test_32_09_temperature": "采样与输出预算",
+    "test_32_10_stop": "采样与输出预算",
+    "test_32_11_json_object": "结构化输出",
+    "test_32_12_stream_options": "流式状态机与完整性",
+    "test_32_13_input_length_nonstream": "参数及输入边界",
+    "test_32_14_auth_security": "错误码与异常响应",
+    "test_32_15_encoding_special_chars": "参数及输入边界",
+    "test_32_16_system_prompt_behavior": "消息历史与思考回填",
+    "test_32_17_idempotency": "参数及输入边界",
+}
+
+
+def titles_for(suite: str) -> dict[str, str]:
+    """按套件返回模块名→中文标题映射：k31selfcheck1/k3selfcheck 用基线 14 项口径。"""
+    if suite in ("k31selfcheck1", "k3selfcheck"):
+        return {**MODULE_TITLES, **BASELINE_TITLES}
+    return MODULE_TITLES
+
+
 def suite_title(suite: str) -> str:
-    """engineering.tests.test_x / k31basesuite.tests.test_x → 中文标题（未映射回退原名）。"""
+    """xxx.tests.test_x → 中文标题（未映射回退原名）。"""
     name = suite.rsplit(".", 1)[-1]
     return MODULE_TITLES.get(name, name)

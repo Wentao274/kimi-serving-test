@@ -21,6 +21,17 @@ import json
 import os
 import sys
 import time
+from pathlib import Path
+
+# 功能套件模块名→中文标题（与 k31basesuite 单一数据源对齐）
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "k31test" / "function-test"))
+try:
+    from k31basesuite.module_titles import titles_for as _func_titles_for
+except ImportError:
+    _func_titles_for = None
+
+# 当前运行套件的模块标题映射（main 中按套件设置；默认对外版口径）
+_ACTIVE_TITLES: dict[str, str] = {}
 
 _MAX_FIELD = 65536  # 单字段展示截断（完整内容见 report_data.json）
 
@@ -33,6 +44,7 @@ body { font-family: -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif; ma
 .header .meta code { color: #e5e7eb; background: #374151; padding: 1px 6px; border-radius: 4px; }
 .container { padding: 16px 32px 48px; }
 h2 { font-size: 15px; margin: 20px 0 8px; color: #374151; }
+.suite-title { font-size: 15px; font-weight: 700; margin: 22px 0 8px; color: #374151; }
 table.sum { border-collapse: collapse; background: #fff; font-size: 13px; box-shadow: 0 1px 2px rgba(0,0,0,.06); }
 table.sum th, table.sum td { border: 1px solid #d8dfeb; padding: 6px 14px; text-align: left; }
 table.sum th { background: #e3edfc; color: #1e3a8a; }
@@ -82,6 +94,7 @@ function filterCases(status, btn) {
   document.querySelectorAll('.case').forEach(c => {
     var st = c.dataset.status;
     var show = (status === 'all') || (st === status) ||
+      (status === 'warn' && c.dataset.warn === '1') ||
       (status === 'mismatch' && (st === 'vendor_only_fail' || st === 'official_only_fail'));
     c.style.display = show ? '' : 'none';
   });
@@ -137,6 +150,12 @@ def _render_assertions(rec: dict) -> str:
         return ""
     return ("<table class='assertions'><tr><th style='width:52px'>结果</th>"
             f"<th style='width:180px'>断言</th><th>明细</th></tr>{''.join(rows)}</table>")
+
+
+def _has_warn(rec: dict | None) -> bool:
+    """该侧是否存在软性警告（soft 断言未通过）。"""
+    return bool(rec) and any(a.get("soft") and not a.get("passed")
+                             for a in rec.get("assertions") or [])
 
 
 def _render_lane(rec: dict | None, side: str, status: str) -> str:
@@ -221,9 +240,9 @@ MODULE_TITLES = {
 
 
 def _suite_title(suite: str) -> str:
-    """engineering.tests.test_x  →  中文标题（无映射时返回原名）"""
+    """模块名 → 中文标题（按当前套件口径映射，未命中回退原名）。"""
     name = suite.rsplit(".", 1)[-1]
-    return MODULE_TITLES.get(name, name)
+    return _ACTIVE_TITLES.get(name) or MODULE_TITLES.get(name, name)
 
 
 def _rate(passed: int, total: int, skipped: int) -> float:
@@ -266,16 +285,21 @@ def render_dual(vrec, orec, vsum, osum, vmeta, ometa, model: str, stamp: str) ->
     official_rate = _rate(osum["passed"], osum["total"], osum.get("skipped", 0))
 
     suite_html = []
+    n_warn_cases = 0
     for suite, cases in suites.items():
         np_ = sum(1 for _, v, _, _ in cases if v and v["outcome"] == "passed")
         no_ = sum(1 for _, _, o, _ in cases if o and o["outcome"] == "passed")
-        suite_html.append(f"<h2>{_esc(suite)}：{_esc(_suite_title(suite))} <small style='color:#6b7280'>(供应商 {np_}/{len(cases)} | 官方 {no_}/{len(cases)})</small></h2>")
+        suite_html.append(f"<div class='suite-title'>{_esc(_suite_title(suite))} "
+                          f"<small style='color:#6b7280'>({len(cases)} 用例 | 供应商 {np_} 通过 | 官方 {no_} 通过)</small></div>")
         for cid, v, o, status in cases:
             cls = "case" + (" mismatch" if status in ("vendor_only_fail", "official_only_fail") else "")
             v_cls = "vendor_only_fail" if status == "vendor_only_fail" else ("official_only_fail" if status == "official_only_fail" else "")
             o_cls = "official_only_fail" if status == "official_only_fail" else ("vendor_only_fail" if status == "vendor_only_fail" else "")
+            has_warn = _has_warn(v) or _has_warn(o)
+            if has_warn:
+                n_warn_cases += 1
             suite_html.append(
-                f"<div class='{cls}' data-status='{status}'>"
+                f"<div class='{cls}' data-status='{status}' data-warn='{1 if has_warn else 0}'>"
                 f"{_render_lane(v, 'lane vendor ' + v_cls, status)}"
                 f"{_render_lane(o, 'lane official ' + o_cls, status)}"
                 f"</div>"
@@ -300,6 +324,7 @@ def render_dual(vrec, orec, vsum, osum, vmeta, ometa, model: str, stamp: str) ->
             ("warn", cats['official_only_fail'], "仅官方失败", "official_only_fail"),
             ("failed", cats['both_fail'], "双均失败", "both_fail"),
             ("other", cats['other'], "其他/未执行", "other"),
+            ("warn", n_warn_cases, "软性警告", "warn"),
         ]
     )
 
@@ -324,6 +349,7 @@ def render_dual(vrec, orec, vsum, osum, vmeta, ometa, model: str, stamp: str) ->
   <button data-status="official_only_fail" onclick="filterCases('official_only_fail', this)">仅官方失败</button>
   <button data-status="both_fail" onclick="filterCases('both_fail', this)">双均失败</button>
   <button data-status="other" onclick="filterCases('other', this)">其他/未执行</button>
+  <button data-status="warn" onclick="filterCases('warn', this)">软性警告</button>
   <button data-status="mismatch" onclick="showMismatch(this)">仅看不一致</button>
 </div>
 <div class="lane-hd"><span>◀ 供应商（左）</span><span>▶ 官方（右）</span></div>
@@ -334,8 +360,11 @@ def render_dual(vrec, orec, vsum, osum, vmeta, ometa, model: str, stamp: str) ->
 
 
 def main() -> int:
+    global _ACTIVE_TITLES
     out_root = sys.argv[1]
     suite = sys.argv[2] if len(sys.argv) > 2 else "engineering"
+    if _func_titles_for is not None:
+        _ACTIVE_TITLES = _func_titles_for(suite)
     vendor_path = _latest(os.path.join(out_root, suite, "*", "report_data.json"))
     official_path = _latest(os.path.join(out_root, "official", suite, "*", "report_data.json"))
     if not vendor_path or not official_path:

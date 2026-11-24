@@ -24,12 +24,15 @@ def proto(settings) -> ProtocolClient:
 def attach_proto(rec, proto: ProtocolClient, path: str, payload: dict, r: ProtoResult) -> None:
     """把 ProtoResult 写回对应的 CaseRecord（报告展示请求/响应/事件序列）。"""
     url = proto._full_url(path)  # 与实际发送的请求 URL 保持一致（避免展示成双 /v1）
+    # 与实际发送的请求体一致：call_responses/call_messages 会注入 model
+    body = dict(payload)
+    body.setdefault("model", proto.model)
     rec.request = {
         "method": "POST",
         "url": url,
         "headers": proto.masked_headers(),
-        "body": payload,
-        "curl": build_curl("POST", url, proto.masked_headers(), payload),
+        "body": body,
+        "curl": build_curl("POST", url, proto.masked_headers(), body),
     }
     rec.response_status = r.status_code
     rec.response = r.json_body if r.json_body is not None else r.raw_text

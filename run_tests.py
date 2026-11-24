@@ -33,6 +33,7 @@ ST = ROOT / "k31test" / "stress-test"     # 性能测试根
 # pytest 目标（目录直跑，不经有序清单）
 SUITES = {
     "engineering": ["engineering/tests"],
+    "k3selfcheck": ["k3test/function-test/k3selfcheck/tests"],  # K3 自测（自包含框架）
 }
 
 # k31basesuite 公共模块（执行顺序 = 对外版 3.1→3.2 原序）

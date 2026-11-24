@@ -174,6 +174,20 @@ python run_tests.py k31selfcheck1 \
 - 协议未开放（Responses/Messages 4xx）按基线"不得以其他协议结果替代"记为失败并注明；官方对照需 `--official-base-url/--official-api-key/--official-model`
 - Jenkins：`SUITE=k31selfcheck1` 直接触发（同一 Jenkinsfile)；**支持 `COMPARE_OFFICIAL=true` 官方双跑**——111 例在官方端点再跑一遍，`gen_compare.py` 生成 `<model>_compare_<时间戳>.html` 双通道对比报告 + 邮件"供应商 vs 官方"汇总表（对比附件：`official/k31selfcheck1/*` 与 `*_compare_*.html`）
 
+## K3 供应商自测（k3selfcheck）
+
+基于 k31selfcheck1 用例体系（14 自有 + 17 公共，共 111 用例）的 K3 自测套件，**自包含**于
+`k3test/function-test/k3selfcheck/`（不引用 k31test 任何代码）。与 k31selfcheck1 的唯一逻辑差异为
+**temperature 规则**：思考模式（含默认）仅允许 1.0，关闭思考模式仅允许 0.6，显式传其他值返回
+400 / immutable_param（k31 为思考 {0,0.6,1.0} / 关思考 {0.6}）。
+
+```bash
+python run_tests.py k3selfcheck --base-url https://vendor/v1 --api-key sk-xxx --model <k3模型名>
+```
+
+- 报告：`reports/k3selfcheck/<时间戳>/<model>_k3selfcheck_report_<时间戳>.html` + `report_data.json`
+- Jenkins：`SUITE=k3selfcheck` 直接触发；**支持 `COMPARE_OFFICIAL=true` 官方双跑**（对比附件：`official/k3selfcheck/*` 与 `*_compare_*.html`）
+
 ## 模型接入功能测试（k31selfcheck2）
 
 依据《模型接入要求（对外版）》「3. 功能」实现：3.1 整体基本要求（11 项）+ 3.2 API 功能测试（18 项），共 92 用例。默认值与预期行为按 kimi-k3.1-pro 官方规格对齐：
