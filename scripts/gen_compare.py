@@ -66,18 +66,32 @@ pre.error { background: #2d0a0a; color: #ffb4b4; }
 .toolbar { margin: 12px 0 16px; }
 .toolbar button { border: 1px solid #d1d5db; background: #fff; border-radius: 6px; padding: 5px 12px; cursor: pointer; font-size: 12px; }
 .toolbar button.active { background: #111827; color: #fff; }
+.summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; margin: 14px 0 4px; }
+.stat { background: #fff; border-radius: 8px; box-shadow: 0 1px 2px rgba(0,0,0,.06); padding: 12px 14px; text-align: center; cursor: pointer; border: 2px solid transparent; }
+.stat:hover { border-color: #93c5fd; }
+.stat .num { font-size: 22px; font-weight: 800; }
+.stat .lbl { font-size: 12px; color: #6b7280; margin-top: 2px; }
+.stat.passed .num { color: #16a34a; } .stat.failed .num { color: #dc2626; }
+.stat.warn .num { color: #d97706; } .stat.info .num { color: #1e3a8a; } .stat.other .num { color: #6b7280; }
 """
 
 _JS = """
-function showAll(btn) { _filter('all', btn); }
-function showMismatch(btn) { _filter('mismatch', btn); }
-function _filter(mode, btn) {
+function filterCases(status, btn) {
   document.querySelectorAll('.toolbar button').forEach(b => b.classList.remove('active'));
-  btn.classList.add('active');
+  if (btn) btn.classList.add('active');
   document.querySelectorAll('.case').forEach(c => {
-    c.style.display = (mode === 'all' || c.classList.contains('mismatch')) ? '' : 'none';
+    var st = c.dataset.status;
+    var show = (status === 'all') || (st === status) ||
+      (status === 'mismatch' && (st === 'vendor_only_fail' || st === 'official_only_fail'));
+    c.style.display = show ? '' : 'none';
   });
 }
+function filterByCard(status) {
+  document.querySelectorAll('.toolbar button').forEach(b => b.classList.toggle('active', b.dataset.status === status));
+  filterCases(status, null);
+}
+function showAll(btn) { filterCases('all', btn); }
+function showMismatch(btn) { filterCases('mismatch', btn); }
 function toggleCase(el) { el.closest('.case').classList.toggle('open'); }
 """
 
@@ -261,7 +275,7 @@ def render_dual(vrec, orec, vsum, osum, vmeta, ometa, model: str, stamp: str) ->
             v_cls = "vendor_only_fail" if status == "vendor_only_fail" else ("official_only_fail" if status == "official_only_fail" else "")
             o_cls = "official_only_fail" if status == "official_only_fail" else ("vendor_only_fail" if status == "vendor_only_fail" else "")
             suite_html.append(
-                f"<div class='{cls}'>"
+                f"<div class='{cls}' data-status='{status}'>"
                 f"{_render_lane(v, 'lane vendor ' + v_cls, status)}"
                 f"{_render_lane(o, 'lane official ' + o_cls, status)}"
                 f"</div>"
@@ -274,29 +288,45 @@ def render_dual(vrec, orec, vsum, osum, vmeta, ometa, model: str, stamp: str) ->
         f"<span>生成时间: <code>{time.strftime('%Y-%m-%d %H:%M:%S')}</code></span>",
     ])
 
+    total_cases = sum(cats.values())
+    stat_cards = "".join(
+        f"<div class='stat {cls}' onclick=\"filterByCard('{st}')\" title='点击过滤'><div class='num'>{num}</div><div class='lbl'>{lbl}</div></div>"
+        for cls, num, lbl, st in [
+            ("info", total_cases, "总用例", "all"),
+            ("info", f"{vendor_rate}%", "供应商通过率", "all"),
+            ("info", f"{official_rate}%", "官方通过率", "all"),
+            ("passed", cats['both_pass'], "双均通过", "both_pass"),
+            ("failed", cats['vendor_only_fail'], "仅供应商失败", "vendor_only_fail"),
+            ("warn", cats['official_only_fail'], "仅官方失败", "official_only_fail"),
+            ("failed", cats['both_fail'], "双均失败", "both_fail"),
+            ("other", cats['other'], "其他/未执行", "other"),
+        ]
+    )
+
     return f"""<!DOCTYPE html>
 <html lang="zh-CN">
 <head><meta charset="utf-8"><title>{_esc(model)} 供应商 vs 官方 对比报告</title><style>{_CSS}</style></head>
 <body>
 <div class="header"><h1>{_esc(model)} — 供应商 vs 官方 对比报告</h1><div class="meta">{meta_rows}</div></div>
 <div class="container">
+<div class="summary">{stat_cards}</div>
 <h2>供应商 vs 官方 对比汇总</h2>
 <table class="sum">
 <tr><th></th><th>总用例</th><th>通过</th><th>失败</th><th>跳过</th><th>通过率</th></tr>
 <tr><th>供应商</th><td>{vsum['total']}</td><td>{vsum['passed']}</td><td>{vsum['failed']}</td><td>{vsum['skipped']}</td><td>{vendor_rate}%</td></tr>
 <tr><th>官方</th><td>{osum['total']}</td><td>{osum['passed']}</td><td>{osum['failed']}</td><td>{osum['skipped']}</td><td>{official_rate}%</td></tr>
-<tr><th>双边均通过</th><td colspan="5">{cats['both_pass']}</td></tr>
-<tr><th>仅供应商失败</th><td colspan="5" style="color:#dc2626">{cats['vendor_only_fail']}</td></tr>
-<tr><th>仅官方失败</th><td colspan="5" style="color:#b45309">{cats['official_only_fail']}</td></tr>
-<tr><th>双边均失败</th><td colspan="5">{cats['both_fail']}</td></tr>
-<tr><th>跳过/未执行（不计入失败）</th><td colspan="5" style="color:#6b7280">{cats['other']}</td></tr>
 </table>
-<p style="font-size:12px;color:#6b7280;margin:6px 0 0;">注：通过率 = 通过数 /（总用例 - 跳过数）</p>
+<p style="font-size:12px;color:#6b7280;margin:6px 0 0;">注：通过率 = 通过数 /（总数 - 跳过数）</p>
 <div class="toolbar">
-  <button class="active" onclick="showAll(this)">全部用例</button>
-  <button onclick="showMismatch(this)">仅看不一致</button>
+  <button class="active" data-status="all" onclick="showAll(this)">全部显示</button>
+  <button data-status="both_pass" onclick="filterCases('both_pass', this)">双均通过</button>
+  <button data-status="vendor_only_fail" onclick="filterCases('vendor_only_fail', this)">仅供应商失败</button>
+  <button data-status="official_only_fail" onclick="filterCases('official_only_fail', this)">仅官方失败</button>
+  <button data-status="both_fail" onclick="filterCases('both_fail', this)">双均失败</button>
+  <button data-status="other" onclick="filterCases('other', this)">其他/未执行</button>
+  <button data-status="mismatch" onclick="showMismatch(this)">仅看不一致</button>
 </div>
-<div class="lane-hd"><span>▼ 供应商（左）</span><span>▼ 官方（右）</span></div>
+<div class="lane-hd"><span>◀ 供应商（左）</span><span>▶ 官方（右）</span></div>
 {''.join(suite_html)}
 </div>
 <script>{_JS}</script>
