@@ -1,7 +1,7 @@
 """3.1 max_tokens：和官方模型对齐（kimi-k3.1-pro max_tokens 默认值 131072），允许用户修改。
 
-kimi-k3.1-pro 官方规格：默认 131072，允许用户修改；显式传 >131072 应被拒绝（400）；
-显式传 <131072 应正常响应。
+kimi-k3.1-pro 官方规格：默认 131072、最大可设置 1048576；显式传 ≤1048576 被接受，
+显式传 >1048576 应被拒绝（400）。
 不传时默认上限的严格验证为 heavy 用例：以确定性计数序列（从 1 数到 100000，
 约 25 万 tokens 工作量）逼出单次 completion 上限，验证默认上限 ≥ 131072
 （需 --include-heavy，约 70+ 分钟/次，最多 2 次措辞重试；模型提前 stop 记
@@ -91,12 +91,12 @@ def test_31_02_显式小于131072正常响应(client, rec):
     expect_common_ok(rec, r)
 
 
-def test_31_02_显式大于131072拒绝400(client, rec):
-    """max_tokens：显式传 131073（>官方上限 131072）应被拒绝（400）"""
+def test_31_02_显式131073在最大可设置内被接受(client, rec):
+    """max_tokens：显式传 131073（>默认 131072，但在官方最大可设置 1048576 内）被接受（2xx）"""
     req = {"model": client.model, "max_tokens": _OFFICIAL_DEFAULT_MAX_TOKENS + 1,
            "messages": [{"role": "user", "content": "用一句话介绍北京。"}]}
     r = send(client, rec, req)
-    expect_4xx(rec, "max_tokens=131073（>131072）", r)
+    expect_common_ok(rec, r)
 
 
 def test_31_02_显式小值64精确生效(client, rec):

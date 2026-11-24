@@ -38,11 +38,11 @@ def test_32_06_max_tokens为负数(client, rec):
 
 
 def test_32_06_max_tokens极大值(client, rec):
-    """max_tokens：显式传 262144（>官方上限 131072）→ 4xx（拒绝超出官方上限）"""
-    req = {"model": client.model, "max_tokens": 262144,
+    """max_tokens：显式传 1048577（>官方最大可设置 1048576）→ 4xx（拒绝超出官方上限）"""
+    req = {"model": client.model, "max_tokens": 1048577,
            "messages": [{"role": "user", "content": "用一句话介绍广州。"}]}
     r = send(client, rec, req)
-    expect_4xx(rec, "max_tokens=262144（>131072）", r)
+    expect_4xx(rec, "max_tokens=1048577（>1048576）", r)
 
 
 def test_32_06_显式小值64生效(client, rec):

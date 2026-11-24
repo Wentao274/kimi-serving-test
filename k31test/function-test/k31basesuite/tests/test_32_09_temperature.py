@@ -27,7 +27,8 @@ def _expect_immutable_param(rec, name: str, r) -> None:
 
 def test_32_09_thinking模式允许1_0(client, rec):
     """temperature：thinking 模式 temperature=1.0（允许值）→ 2xx"""
-    req = {"model": client.model, "messages": _MESSAGES, "max_tokens": 256,
+    # max_tokens 需容纳 thinking 推理+正文（实测 256 会被推理耗尽导致空 content）
+    req = {"model": client.model, "messages": _MESSAGES, "max_tokens": 2048,
            "thinking": {"type": "enabled"}, "temperature": 1.0}
     r = send(client, rec, req)
     expect_common_ok(rec, r)
@@ -35,7 +36,8 @@ def test_32_09_thinking模式允许1_0(client, rec):
 
 def test_32_09_thinking模式允许0_6(client, rec):
     """temperature：thinking 模式 temperature=0.6（允许值）→ 2xx"""
-    req = {"model": client.model, "messages": _MESSAGES, "max_tokens": 256,
+    # max_tokens 需容纳 thinking 推理+正文（实测 256 会被推理耗尽导致空 content）
+    req = {"model": client.model, "messages": _MESSAGES, "max_tokens": 2048,
            "thinking": {"type": "enabled"}, "temperature": 0.6}
     r = send(client, rec, req)
     expect_common_ok(rec, r)
@@ -91,7 +93,8 @@ def test_32_09_disabled模式拒绝0(client, rec):
 
 def test_32_09_与top_p同时指定(client, rec):
     """temperature：与 top_p 同时指定（均官方默认值 1.0/0.95）→ 2xx（互斥场景行为记录）"""
-    req = {"model": client.model, "messages": _MESSAGES, "max_tokens": 256,
+    # max_tokens 需容纳 thinking 推理+正文（实测 256 会被推理耗尽导致空 content）
+    req = {"model": client.model, "messages": _MESSAGES, "max_tokens": 2048,
            "temperature": 1.0, "top_p": 0.95}
     r = send(client, rec, req)
     expect_common_ok(rec, r)

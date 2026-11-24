@@ -9,7 +9,8 @@ from __future__ import annotations
 
 import json
 
-from k31basesuite.tests._common import expect_common_ok, send
+from k31basesuite.tests._common import (error_body, error_message, expect_4xx,
+                                         expect_common_ok, send)
 
 _TOOLS = [
     {"type": "function", "function": {
@@ -106,7 +107,8 @@ def test_31_08_多轮工具调用上下文(client, rec):
 
 
 def test_31_08_OpenAI协议格式兼容(client, rec):
-    """Function Calling/工具调用：⑤OpenAI Tool Use 协议兼容——tool_choice=none 不触发调用；强制指定函数返回对应 tool_calls"""
+    """Function Calling/工具调用：⑤OpenAI Tool Use 协议兼容——tool_choice=none 不触发调用；
+    强制指定函数对象按官方契约为预期 4xx（不默认支持指定函数）"""
     # tool_choice=none：不得返回 tool_calls，走正常文本回答
     req_none = {"model": client.model, "max_tokens": 512, "tools": _TOOLS,
                 "tool_choice": "none",
@@ -118,15 +120,10 @@ def test_31_08_OpenAI协议格式兼容(client, rec):
     rec.expect("tool_choice=none finish_reason=stop", r1.finish_reason == "stop",
                f"finish_reason={r1.finish_reason!r}")
 
-    # 强制指定函数：必须返回该函数的 tool_calls（OpenAI tool_choice 对象协议）
+    # 强制指定函数对象：官方契约为预期 4xx（不默认支持指定函数）
     req_forced = {"model": client.model, "max_tokens": 512, "tools": _TOOLS,
                   "tool_choice": {"type": "function", "function": {"name": "get_weather"}},
                   "messages": [{"role": "user", "content": "随便聊聊。"}]}
     r2 = send(client, rec, req_forced)
-    rec.expect("强制指定函数 HTTP 200", r2.ok and r2.status_code == 200,
-               f"status={r2.status_code} err={r2.error}")
-    rec.expect("强制指定函数返回对应 tool_calls（name=get_weather）",
-               any((tc.get("function") or {}).get("name") == "get_weather"
-                   for tc in r2.tool_calls),
-               f"tool_calls={r2.tool_calls}")
-    _check_tool_calls_shape(rec, r2.tool_calls, "forced")
+    expect_4xx(rec, "强制指定函数对象（官方契约预期 4xx）", r2)
+    rec.extra["forced_tool_choice_error"] = error_message(error_body(r2))[:200]

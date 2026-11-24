@@ -67,13 +67,21 @@ class ProtocolClient:
     def _client(self, timeout: float) -> httpx.Client:
         return httpx.Client(timeout=httpx.Timeout(connect=30.0, read=timeout, write=60.0, pool=60.0))
 
+    def _full_url(self, path: str) -> str:
+        """协议路径为根相对路径（/v1/responses、/anthropic/v1/messages）：
+        base_url 若含 /v1 后缀须先归一到 origin 再拼接，避免出现 /v1/v1/... 错误路径。"""
+        base = self.base_url.rstrip("/")
+        if base.endswith("/v1"):
+            base = base[: -len("/v1")]
+        return f"{base}{path}"
+
     # ------------------------------------------------------------ Chat（复用）
     def call_chat(self, payload: dict, timeout: float | None = None) -> ChatResult:
         return self.chat.chat(payload, timeout=timeout)
 
     # ------------------------------------------------------------ 通用请求/SSE
     def _post(self, path: str, payload: dict, timeout: float | None = None) -> ProtoResult:
-        url = f"{self.base_url}{path}"
+        url = self._full_url(path)
         t = float(timeout or self.timeout)
         started = time.monotonic()
         r = ProtoResult()
@@ -100,7 +108,7 @@ class ProtocolClient:
         return r
 
     def _post_stream(self, path: str, payload: dict, timeout: float | None = None) -> ProtoResult:
-        url = f"{self.base_url}{path}"
+        url = self._full_url(path)
         t = float(timeout or self.timeout)
         started = time.monotonic()
         r = ProtoResult()

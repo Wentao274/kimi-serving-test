@@ -13,7 +13,8 @@ _MESSAGES = [{"role": "user", "content": "用一句话介绍无锡。"}]
 
 def test_32_05_官方默认0接受(client, rec):
     """presence_penalty：显式传官方默认值 0 被接受（2xx）"""
-    req = {"model": client.model, "messages": _MESSAGES, "max_tokens": 256,
+    # max_tokens 需容纳 thinking 推理+正文（实测 256 会被推理耗尽导致空 content）
+    req = {"model": client.model, "messages": _MESSAGES, "max_tokens": 2048,
            "presence_penalty": 0}
     r = send(client, rec, req)
     expect_common_ok(rec, r)
@@ -37,7 +38,8 @@ def test_32_05_越界值2_5(client, rec):
 
 def test_32_05_与frequency_penalty官方默认叠加(client, rec):
     """presence_penalty：与 frequency_penalty 官方默认值叠加（均 0）被接受（2xx）"""
-    req = {"model": client.model, "messages": _MESSAGES, "max_tokens": 256,
+    # max_tokens 需容纳 thinking 推理+正文（实测 256 会被推理耗尽导致空 content）
+    req = {"model": client.model, "messages": _MESSAGES, "max_tokens": 2048,
            "presence_penalty": 0, "frequency_penalty": 0}
     r = send(client, rec, req)
     expect_common_ok(rec, r)

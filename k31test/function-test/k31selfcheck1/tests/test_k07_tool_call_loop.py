@@ -82,6 +82,15 @@ def test_k07_tool_choice_required(client, rec):
         fn = r.tool_calls[0].get("function") or {}
         rec.expect("required 调用 function.name 正确", fn.get("name") == "get_weather",
                    f"name={fn.get('name')!r}")
+        args = fn.get("arguments")
+        args_ok = True
+        if isinstance(args, str):
+            try:
+                json.loads(args)
+            except json.JSONDecodeError:
+                args_ok = False
+        rec.expect("required 调用 arguments 为合法 JSON", args_ok,
+                   f"arguments={args!r}")
 
 
 def test_k07_multi_step_tool_loop(client, rec):

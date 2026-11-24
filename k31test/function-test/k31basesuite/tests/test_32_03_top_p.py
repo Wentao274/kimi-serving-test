@@ -12,7 +12,8 @@ _MESSAGES = [{"role": "user", "content": "用一句话介绍南京。"}]
 
 def test_32_03_官方默认0_95接受(client, rec):
     """top_p：显式传官方默认值 0.95 被接受（2xx）"""
-    req = {"model": client.model, "messages": _MESSAGES, "max_tokens": 256, "top_p": 0.95}
+    # max_tokens 需容纳 thinking 推理+正文（实测 256 会被推理耗尽导致空 content）
+    req = {"model": client.model, "messages": _MESSAGES, "max_tokens": 2048, "top_p": 0.95}
     r = send(client, rec, req)
     expect_common_ok(rec, r)
 
