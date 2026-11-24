@@ -45,7 +45,8 @@ def test_32_09_thinking模式允许0_6(client, rec):
 
 def test_32_09_thinking模式允许0(client, rec):
     """temperature：thinking 模式 temperature=0（允许值）→ 2xx"""
-    req = {"model": client.model, "messages": _MESSAGES, "max_tokens": 256,
+    # max_tokens 需容纳 thinking 推理+正文
+    req = {"model": client.model, "messages": _MESSAGES, "max_tokens": 2048,
            "thinking": {"type": "enabled"}, "temperature": 0}
     r = send(client, rec, req)
     expect_common_ok(rec, r)

@@ -208,9 +208,9 @@ echo "=== 同步代码 ==="
 mkdir -p ${BUILD_OUTPUT_DIR}
 BEFORE=\$(git rev-parse --short HEAD 2>/dev/null || echo unknown)
 echo "同步前代码: \${BEFORE}"
-# TLS/网络抖动常见，重试 3 次后才认定同步失败
+# TLS/网络抖动常见，重试一次（共 2 次）后仍失败则认定同步失败
 SYNC_STATUS="failed"
-for i in 1 2 3; do
+for i in 1 2; do
     if git pull --ff-only; then
         SYNC_STATUS="ok"
         break

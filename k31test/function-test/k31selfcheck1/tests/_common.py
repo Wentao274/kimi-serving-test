@@ -22,8 +22,8 @@ def proto(settings) -> ProtocolClient:
 
 
 def attach_proto(rec, proto: ProtocolClient, path: str, payload: dict, r: ProtoResult) -> None:
-    """把 ProtoResult 手写挂载到 CaseRecord（报告需展示请求/响应/事件序列）。"""
-    url = f"{proto.base_url}{path}"
+    """把 ProtoResult 写回对应的 CaseRecord（报告展示请求/响应/事件序列）。"""
+    url = proto._full_url(path)  # 与实际发送的请求 URL 保持一致（避免展示成双 /v1）
     rec.request = {
         "method": "POST",
         "url": url,

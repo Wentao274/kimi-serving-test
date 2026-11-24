@@ -9,6 +9,7 @@ tool_calls[].function.name/arguments 合法（arguments 为合法 JSON）；多�
 from __future__ import annotations
 
 import json
+import re
 
 from k31selfcheck1.protocols import (
     ProtocolClient,
@@ -90,6 +91,9 @@ def test_k07_tool_choice_required(client, rec):
             except json.JSONDecodeError:
                 args_ok = False
         rec.expect("required 调用 arguments 为合法 JSON", args_ok,
+                   f"arguments={args!r}")
+        leak = isinstance(args, str) and ("<:" in args or "|" in args)
+        rec.expect("required 调用 arguments 无特殊 token 泄露", not leak,
                    f"arguments={args!r}")
 
 

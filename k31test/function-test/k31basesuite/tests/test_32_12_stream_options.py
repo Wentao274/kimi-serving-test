@@ -9,7 +9,7 @@ _MESSAGES = [{"role": "user", "content": "请用三句话介绍深度学习。"}
 
 def test_32_12_include_usage_true(client, rec):
     """stream_options：include_usage=true → 流末 usage 块存在（hard）"""
-    req = {"model": client.model, "messages": _MESSAGES, "max_tokens": 512, "stream": True,
+    req = {"model": client.model, "messages": _MESSAGES, "max_tokens": 2048, "stream": True,
            "stream_options": {"include_usage": True}}
     r = send(client, rec, req)
     expect_common_ok(rec, r)
@@ -24,7 +24,7 @@ def test_32_12_include_usage_true(client, rec):
 
 def test_32_12_include_usage_false(client, rec):
     """stream_options：include_usage=false → 流中无 usage 块（hard）"""
-    req = {"model": client.model, "messages": _MESSAGES, "max_tokens": 512, "stream": True,
+    req = {"model": client.model, "messages": _MESSAGES, "max_tokens": 2048, "stream": True,
            "stream_options": {"include_usage": False}}
     r = send(client, rec, req)
     expect_common_ok(rec, r)
@@ -36,7 +36,7 @@ def test_32_12_include_usage_false(client, rec):
 
 def test_32_12_continuous_usage_stats(client, rec):
     """stream_options：continuous_usage_stats=true 时每个 chunk 是否带 usage（记录 soft）"""
-    req = {"model": client.model, "messages": _MESSAGES, "max_tokens": 512, "stream": True,
+    req = {"model": client.model, "messages": _MESSAGES, "max_tokens": 2048, "stream": True,
            "stream_options": {"include_usage": True, "continuous_usage_stats": True}}
     r = send(client, rec, req)
     expect_common_ok(rec, r)

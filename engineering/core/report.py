@@ -249,16 +249,17 @@ def render_html(collector: Collector, meta: dict[str, Any],
         f"<span>{_esc(k)}: <code>{_esc(v)}</code></span>" for k, v in meta.items()
     )
 
+    _model = str(meta.get("模型") or meta.get("model") or "?")
     return f"""<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
 <meta charset="utf-8">
-<title>K3.1 工程验收测试报告</title>
+<title>{_esc(_model)} - 工程能力测试报告</title>
 <style>{_CSS}</style>
 </head>
 <body>
 <div class="header">
-  <h1>K3.1 流量外采 — 工程验收测试报告</h1>
+  <h1>{_esc(_model)} - 工程能力测试报告</h1>
   <div class="meta">{meta_rows}</div>
 </div>
 <div class="container">

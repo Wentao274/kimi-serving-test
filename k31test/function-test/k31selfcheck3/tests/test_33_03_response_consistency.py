@@ -12,7 +12,7 @@ _MESSAGES = [{"role": "user", "content": "请用三句话介绍机器学习。"}
 
 def test_33_03_流式与非流式一致性(client, rec):
     """响应一致性：同一请求（seed=42）流式与非流式的 content 一致性（如实记录）"""
-    base = {"model": client.model, "messages": _MESSAGES, "max_tokens": 512, "seed": 42}
+    base = {"model": client.model, "messages": _MESSAGES, "max_tokens": 2048, "seed": 42}
     r1 = send(client, rec, {**base, "stream": False})
     expect_common_ok(rec, r1)
     r2 = send(client, rec, {**base, "stream": True})
@@ -25,7 +25,7 @@ def test_33_03_流式与非流式一致性(client, rec):
 
 def test_33_03_重复请求一致性(client, rec):
     """响应一致性：seed=42 相同请求连续 3 次 → 均 2xx 且 content 一致（如实记录）"""
-    req = {"model": client.model, "messages": _MESSAGES, "max_tokens": 512, "seed": 42}
+    req = {"model": client.model, "messages": _MESSAGES, "max_tokens": 2048, "seed": 42}
     results = []
     for i in range(3):
         r = send(client, rec, dict(req))
@@ -39,7 +39,7 @@ def test_33_03_重复请求一致性(client, rec):
 
 def test_33_03_并发相同请求一致性(client, rec):
     """响应一致性：5 并发相同请求（seed=42）→ 全部 2xx 且 usage 有效、total_tokens 一致（如实记录）"""
-    req = {"model": client.model, "messages": _MESSAGES, "max_tokens": 512, "seed": 42}
+    req = {"model": client.model, "messages": _MESSAGES, "max_tokens": 2048, "seed": 42}
     with ThreadPoolExecutor(max_workers=5) as pool:
         results = list(pool.map(lambda _: client.chat(dict(req)), range(5)))
     rec.attach_result(req, results[0], client.chat_completions_url, client.masked_headers())

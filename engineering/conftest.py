@@ -143,8 +143,17 @@ def pytest_sessionfinish(session, exitstatus):
     file_stamp = stamp.replace("_", "")
     html_path = out_dir / f"{safe_model}_engineering_report_{file_stamp}.html"
 
+    # 部署版本（若响应头含 X-Msh-ProviderDeployId 则记录，取自供应商真实响应）
+    deploy_id = ""
+    for r in collector.records:
+        headers = (r.extra or {}).get("response_headers") or {}
+        deploy_id = headers.get("x-msh-providerdeployid", "")
+        if deploy_id:
+            break
+
     meta = {
         "模型": settings.model if settings else "?",
+        "部署版本": deploy_id or "（响应头未返回 X-Msh-ProviderDeployId）",
         "Endpoint": settings.base_url if settings else "?",
         "开始时间": collector.started_at,
         "结束时间": collector.finished_at,

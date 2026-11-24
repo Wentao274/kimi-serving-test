@@ -9,7 +9,7 @@ _MESSAGES = [{"role": "user", "content": "请用三句话介绍机器学习。"}
 
 def test_32_08_流式SSE协议合规(client, rec):
     """stream：流式 chunk 为合法 SSE（data: 行、chat.completion.chunk 结构、[DONE]）"""
-    req = {"model": client.model, "messages": _MESSAGES, "max_tokens": 512, "stream": True}
+    req = {"model": client.model, "messages": _MESSAGES, "max_tokens": 2048, "stream": True}
     r = send(client, rec, req)
     expect_common_ok(rec, r)
     raw = r.raw_text or ""
@@ -32,7 +32,7 @@ def test_32_08_流式SSE协议合规(client, rec):
 
 def test_32_08_include_usage末块usage(client, rec):
     """stream：include_usage=true 时 usage 末块存在"""
-    req = {"model": client.model, "messages": _MESSAGES, "max_tokens": 512, "stream": True,
+    req = {"model": client.model, "messages": _MESSAGES, "max_tokens": 2048, "stream": True,
            "stream_options": {"include_usage": True}}
     r = send(client, rec, req)
     expect_common_ok(rec, r)
@@ -47,7 +47,7 @@ def test_32_08_include_usage末块usage(client, rec):
 
 def test_32_08_流式中断行为记录(client, rec):
     """stream：流式请求被中断的行为记录（正常完成即可；真实中断注入属专项测试）"""
-    req = {"model": client.model, "messages": _MESSAGES, "max_tokens": 512, "stream": True}
+    req = {"model": client.model, "messages": _MESSAGES, "max_tokens": 2048, "stream": True}
     r = send(client, rec, req)
     expect_common_ok(rec, r)
     rec.expect("流式正常完成（finish_reason=stop 且 [DONE] 到达）",

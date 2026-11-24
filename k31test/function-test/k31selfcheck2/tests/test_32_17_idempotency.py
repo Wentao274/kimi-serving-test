@@ -16,7 +16,7 @@ _MESSAGES = [{"role": "user", "content": "请用三句话介绍量子计算。"}
 
 def test_32_17_seed相同请求结果稳定(client, rec):
     """幂等性验证：带 seed=42 的相同请求两次 → 记录两次 content 一致性（如实记录，soft）"""
-    req = {"model": client.model, "messages": _MESSAGES, "max_tokens": 512, "seed": 42}
+    req = {"model": client.model, "messages": _MESSAGES, "max_tokens": 2048, "seed": 42}
     r1 = client.chat(dict(req))
     rec.expect("第一次请求 HTTP 2xx", r1.ok, f"status={r1.status_code} err={r1.error}")
     r2 = send(client, rec, req)
@@ -31,7 +31,7 @@ def test_32_17_seed相同请求结果稳定(client, rec):
 
 def test_32_17_重复提交不重复计费(client, rec):
     """幂等性验证：重复提交同请求两次 → 两次 usage.total_tokens 比对（一致性如实记录，soft）"""
-    req = {"model": client.model, "messages": _MESSAGES, "max_tokens": 512, "seed": 42}
+    req = {"model": client.model, "messages": _MESSAGES, "max_tokens": 2048, "seed": 42}
     r1 = client.chat(dict(req))
     rec.expect("第一次请求 HTTP 2xx", r1.ok, f"status={r1.status_code} err={r1.error}")
     r2 = send(client, rec, req)
@@ -51,7 +51,7 @@ def test_32_17_网络重试后行为一致(client, rec):
     headers = {"Authorization": f"Bearer {client.api_key}",
                "Content-Type": "application/json"}
     stream_req = {"model": client.model, "messages": _MESSAGES,
-                  "max_tokens": 512, "stream": True}
+                  "max_tokens": 2048, "stream": True}
     aborted = False
     with httpx.Client(timeout=60) as hc:
         with hc.stream("POST", url, headers=headers, json=stream_req) as resp:
@@ -64,7 +64,7 @@ def test_32_17_网络重试后行为一致(client, rec):
     rec.extra["aborted_mid_stream"] = aborted
 
     r = send(client, rec, {"model": client.model, "messages": _MESSAGES,
-                           "max_tokens": 512})
+                           "max_tokens": 2048})
     expect_common_ok(rec, r)
     rec.expect("中断后重发相同请求正常响应（usage 完整）",
                bool((r.usage or {}).get("total_tokens")), f"usage={r.usage}")
