@@ -691,6 +691,8 @@ fi
                             : (params.SUITE == 'k31basesuite') ? '公共基础用例集'
                             : (params.SUITE == 'k3selfcheck') ? 'K3供应商自测'
                             : (params.SUITE == 'k31selfstress1') ? '性能基线' : '压力测试'
+                        // 邮件标题前缀：k3selfcheck 不带 "K3.1供应商" 前缀（避免 "K3.1供应商K3供应商自测" 叠词）
+                        def subjectPrefix = (params.SUITE == 'k3selfcheck') ? "[${suiteLabel}]" : "[K3.1供应商${suiteLabel}]"
 
                         def suiteParamsRows = ''
                         if (params.SUITE == 'engineering' || params.SUITE == 'k31selfcheck1' || params.SUITE == 'k31selfcheck2' || params.SUITE == 'k31selfcheck3' || params.SUITE == 'k31basesuite' || params.SUITE == 'k3selfcheck') {
@@ -770,7 +772,7 @@ ${reportFile && fileExists(reportFile) ? '<p>详细测试报告（原始 HTML �
                         attachPatterns.add("reports/${BUILD_NUMBER}/*_compare_*.html")
 
                         emailext(
-                            subject: "[K3.1供应商${suiteLabel}] ${params.MODEL} - ${params.SUITE} - 构建 #${BUILD_NUMBER} - ${resultLabel}${rateLabel != 'N/A' ? " (通过率 ${rateLabel})" : ''}",
+                            subject: "${subjectPrefix} ${params.MODEL} - ${params.SUITE} - 构建 #${BUILD_NUMBER} - ${resultLabel}${rateLabel != 'N/A' ? " (通过率 ${rateLabel})" : ''}",
                             body: emailBody,
                             to: "${params.RECIPIENTS}",
                             mimeType: 'text/html',
