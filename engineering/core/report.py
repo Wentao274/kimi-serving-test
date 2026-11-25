@@ -208,7 +208,10 @@ def render_html(collector: Collector, meta: dict[str, Any],
     summary = collector.summary()
     suites: dict[str, list[CaseRecord]] = {}
     for rec in collector.records:
-        suites.setdefault(rec.suite, []).append(rec)
+        # 分组键 = 分类标题（映射后），同分类的多个模块并入同一节点
+        short = rec.suite.rsplit(".", 1)[-1]
+        key = (module_titles or {}).get(short, rec.suite)
+        suites.setdefault(key, []).append(rec)
 
     warn_cases = sum(
         1 for r in collector.records
@@ -236,10 +239,8 @@ def render_html(collector: Collector, meta: dict[str, Any],
     suite_blocks = []
     for suite, records in suites.items():
         n_pass = sum(1 for r in records if r.outcome == "passed")
-        short = suite.rsplit(".", 1)[-1]
-        disp = (module_titles or {}).get(short, suite)
         block = [
-            f"<div class='suite-title'>{_esc(disp)} "
+            f"<div class='suite-title'>{_esc(suite)} "
             f"<small style='color:#6b7280'>({n_pass}/{len(records)} 通过)</small></div>"
         ]
         block.extend(_render_case(r) for r in records)

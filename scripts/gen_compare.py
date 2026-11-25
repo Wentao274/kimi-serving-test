@@ -279,7 +279,8 @@ def render_dual(vrec, orec, vsum, osum, vmeta, ometa, model: str, stamp: str) ->
             status = "other"
         cats[status] += 1
         suite = (v or o).get("suite", "unknown")
-        suites.setdefault(suite, []).append((cid, v, o, status))
+        # 分组键 = 分类标题（映射后），同分类的多个模块并入同一节点
+        suites.setdefault(_suite_title(suite), []).append((cid, v, o, status))
 
     vendor_rate = _rate(vsum["passed"], vsum["total"], vsum.get("skipped", 0))
     official_rate = _rate(osum["passed"], osum["total"], osum.get("skipped", 0))
@@ -289,7 +290,7 @@ def render_dual(vrec, orec, vsum, osum, vmeta, ometa, model: str, stamp: str) ->
     for suite, cases in suites.items():
         np_ = sum(1 for _, v, _, _ in cases if v and v["outcome"] == "passed")
         no_ = sum(1 for _, _, o, _ in cases if o and o["outcome"] == "passed")
-        suite_html.append(f"<div class='suite-title'>{_esc(_suite_title(suite))} "
+        suite_html.append(f"<div class='suite-title'>{_esc(suite)} "
                           f"<small style='color:#6b7280'>({len(cases)} 用例 | 供应商 {np_} 通过 | 官方 {no_} 通过)</small></div>")
         for cid, v, o, status in cases:
             cls = "case" + (" mismatch" if status in ("vendor_only_fail", "official_only_fail") else "")
