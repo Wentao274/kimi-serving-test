@@ -8,7 +8,7 @@ from k31basesuite.tests._common import (error_body, error_message,
 
 def test_32_10_单个停止词(client, rec):
     """stop：单个停止词（"STOP"）——输出应在停止词前截断"""
-    req = {"model": client.model, "max_tokens": 512, "stop": ["STOP"],
+    req = {"model": client.model, "max_tokens": 2048, "stop": ["STOP"],
            "messages": [{"role": "user", "content":
                          "请原样输出以下内容，不要添加任何其他文字：BEGIN STOP END"}]}
     r = send(client, rec, req)
@@ -21,7 +21,7 @@ def test_32_10_单个停止词(client, rec):
 
 def test_32_10_多个停止词数组(client, rec):
     """stop：多个停止词数组——输出应在任一停止词前截断"""
-    req = {"model": client.model, "max_tokens": 512, "stop": ["香蕉", "西瓜"],
+    req = {"model": client.model, "max_tokens": 2048, "stop": ["香蕉", "西瓜"],
            "messages": [{"role": "user", "content":
                          "请原样输出：苹果 香蕉 橘子 西瓜（不要输出其他内容）"}]}
     r = send(client, rec, req)
@@ -33,7 +33,7 @@ def test_32_10_多个停止词数组(client, rec):
 
 def test_32_10_特殊字符停止词(client, rec):
     r"""stop：特殊字符停止词（含 \n）——输出应在换行前截断"""
-    req = {"model": client.model, "max_tokens": 512, "stop": ["\n"],
+    req = {"model": client.model, "max_tokens": 2048, "stop": ["\n"],
            "messages": [{"role": "user", "content":
                          "请输出三行，每行一个词：第一行写苹果，第二行写香蕉，第三行写橘子。"}]}
     r = send(client, rec, req)
@@ -44,7 +44,7 @@ def test_32_10_特殊字符停止词(client, rec):
 
 def test_32_10_空stop值(client, rec):
     """stop：空 stop 值（记录行为）"""
-    req = {"model": client.model, "max_tokens": 128, "stop": [],
+    req = {"model": client.model, "max_tokens": 2048, "stop": [],
            "messages": [{"role": "user", "content": "用一句话介绍武汉。"}]}
     r = send(client, rec, req)
     if r.ok:
