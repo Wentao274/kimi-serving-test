@@ -25,7 +25,7 @@ MODULE_TITLES = {
     "test_31_04_whitelist": "免审核白名单-关闭绿网",
     "test_31_05_rate_limit": "频控容忍",
     "test_31_06_cache": "Cache能力支持",
-    "test_31_07_structured_output": "结构化输出支持",
+    "test_31_07_structured_output": "结构化输出",  # 与 k06 同测试点，合并展示
     "test_31_08_function_calling": "Function Calling/工具调用",
     "test_31_09_context_length": "模型上下文长度",
     "test_31_10_special_features": "模型特有特性",
@@ -38,7 +38,7 @@ MODULE_TITLES = {
     "test_32_06_max_tokens": "max_tokens（边界值/思维链差异）",
     "test_32_07_input_length": "输入长度",
     "test_32_08_stream": "stream",
-    "test_32_09_temperature": "temperature",
+    "test_32_09_temperature": "temperature（思考模式温度控制）",
     "test_32_10_stop": "stop",
     "test_32_11_json_object": "json_object",
     "test_32_12_stream_options": "stream_options",
@@ -51,38 +51,44 @@ MODULE_TITLES = {
 
 
 # 31_/32_ 共享模块 → 《Kimi-K3.1-Pro 供应商自测基线标准》功能兼容性要求 14 项
-# （k3selfcheck 报告分组头使用）
-BASELINE_TITLES = {
-    "test_31_01_thinking": "常驻思考与推理强度",
-    "test_31_02_max_tokens": "采样与输出预算",
+# （k3selfcheck 报告分组使用）
+BASELINE14_TITLES = {
     "test_31_06_cache": "usage 与缓存计量",
-    "test_31_07_structured_output": "结构化输出",
-    "test_31_08_function_calling": "工具调用与多步闭环",
-    "test_31_11_token_count": "输入 Token 专项对齐",
-    "test_32_01_messages": "参数及输入边界",
-    "test_32_02_messages_elements": "参数及输入边界",
+    "test_31_01_thinking": "常驻思考与推理强度",
+    "test_31_10_special_features": "常驻思考与推理强度",
+    "test_31_02_max_tokens": "采样与输出预算",
     "test_32_03_top_p": "采样与输出预算",
     "test_32_04_frequency_penalty": "采样与输出预算",
     "test_32_05_presence_penalty": "采样与输出预算",
     "test_32_06_max_tokens": "采样与输出预算",
-    "test_32_07_input_length": "参数及输入边界",
-    "test_32_08_stream": "流式状态机与完整性",
     "test_32_09_temperature": "采样与输出预算",
     "test_32_10_stop": "采样与输出预算",
-    "test_32_11_json_object": "结构化输出",
+    "test_32_08_stream": "流式状态机与完整性",
     "test_32_12_stream_options": "流式状态机与完整性",
-    "test_32_13_input_length_nonstream": "参数及输入边界",
+    "test_31_07_structured_output": "结构化输出",
+    "test_32_11_json_object": "结构化输出",
+    "test_31_08_function_calling": "工具调用与多步闭环",
     "test_32_14_auth_security": "错误码与异常响应",
+    "test_31_04_whitelist": "参数及输入边界",
+    "test_31_05_rate_limit": "参数及输入边界",
+    "test_31_09_context_length": "参数及输入边界",
+    "test_32_01_messages": "参数及输入边界",
+    "test_32_02_messages_elements": "参数及输入边界",
+    "test_32_07_input_length": "参数及输入边界",
+    "test_32_13_input_length_nonstream": "参数及输入边界",
     "test_32_15_encoding_special_chars": "参数及输入边界",
-    "test_32_16_system_prompt_behavior": "消息历史与思考回填",
     "test_32_17_idempotency": "参数及输入边界",
+    "test_31_11_token_count": "输入 Token 专项对齐",
+    "test_31_03_system_prompt": "消息历史与思考回填",
+    "test_32_16_system_prompt_behavior": "消息历史与思考回填",
 }
 
 
 def titles_for(suite: str) -> dict[str, str]:
-    """按套件返回模块名→中文标题映射：k31selfcheck1/k3selfcheck 用基线 14 项口径。"""
+    """模块名→中文标题映射：k31selfcheck1/k3selfcheck 合并为基线 14 分类；
+    其他套件保持各模块具体测试点名。"""
     if suite in ("k31selfcheck1", "k3selfcheck"):
-        return {**MODULE_TITLES, **BASELINE_TITLES}
+        return {**MODULE_TITLES, **BASELINE14_TITLES}
     return MODULE_TITLES
 
 
