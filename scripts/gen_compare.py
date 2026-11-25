@@ -57,7 +57,7 @@ table.sum th { background: #e3edfc; color: #1e3a8a; }
 .badge { display: inline-block; min-width: 52px; text-align: center; font-size: 11px; font-weight: 700; color: #fff; border-radius: 4px; padding: 2px 6px; flex-shrink: 0; }
 .badge.passed { background: #16a34a; } .badge.failed { background: #dc2626; }
 .badge.error { background: #b45309; } .badge.skipped { background: #6b7280; }
-.badge.missing { background: #9ca3af; }
+.badge.missing { background: #9ca3af; } .badge.warn { background: #d97706; }
 .ttl { font-size: 12px; font-weight: 600; flex: 1; word-break: break-all; }
 .time { font-size: 11px; color: #6b7280; white-space: nowrap; }
 .body { display: none; border-top: 1px solid #e5e7eb; padding: 8px 12px; }

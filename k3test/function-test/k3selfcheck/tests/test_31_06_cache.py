@@ -82,7 +82,7 @@ def test_31_06_缓存TTL过期后不再命中(client, rec, settings):
     expect_common_ok(rec, r3)
     third_cached = _cached_tokens(r3.usage)
     rec.extra["after_ttl_cached_tokens"] = third_cached
-    rec.check(f"间隔 {_TTL_WAIT_S:.0f}s（>5min TTL）后缓存过期不再命中（cached_tokens=0）",
-              third_cached == 0,
-              f"cached_tokens={third_cached}（仍命中说明实际 TTL 更长，如实记录，"
-              "可加大 KST_CACHE_TTL_WAIT_S 复测）", soft=True)
+    rec.expect(f"间隔 {_TTL_WAIT_S:.0f}s（>5min TTL）后缓存过期不再命中（cached_tokens=0）",
+               third_cached == 0,
+               f"cached_tokens={third_cached}（超过 TTL 仍命中，违反 TTL 预期；"
+               "基线 TTL ~50s，达标 ≥30s）")
