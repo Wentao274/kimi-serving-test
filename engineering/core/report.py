@@ -35,6 +35,7 @@ body { font-family: -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif;
 .toolbar input { flex: 1; min-width: 220px; padding: 7px 12px; border: 1px solid #d1d5db;
                  border-radius: 6px; font-size: 13px; }
 .suite-title { font-size: 15px; font-weight: 700; margin: 22px 0 8px; color: #374151; }
+.subgroup-title { font-size: 13px; font-weight: 600; margin: 12px 0 6px 14px; color: #4b5563; }
 .case { background: #fff; border-radius: 8px; margin-bottom: 10px;
         box-shadow: 0 1px 2px rgba(0,0,0,.06); overflow: hidden; }
 .case-head { display: flex; align-items: center; gap: 10px; padding: 10px 14px; cursor: pointer; }
@@ -162,7 +163,7 @@ def _render_case(rec: CaseRecord) -> str:
         f"<div class='case-head' onclick='toggleCase(this)'>",
         f"<span class='badge {rec.outcome}'>{rec.outcome.upper()}</span>",
         warn_badge,
-        f"<span class='case-title'>{_esc(rec.title)}</span>",
+        f"<span class='case-title'>{_esc(('[{}] '.format(getattr(rec, '_sg_tag', '')) if getattr(rec, '_sg_tag', '') else '') + rec.title)}</span>",
         f"<span class='case-time'>{_esc(' | '.join(timing))}</span>",
         "</div><div class='case-body'>",
     ]
@@ -204,7 +205,14 @@ def _render_case(rec: CaseRecord) -> str:
 
 
 def render_html(collector: Collector, meta: dict[str, Any],
-                module_titles: dict[str, str] | None = None) -> str:
+                module_titles: dict[str, str] | None = None,
+                subgroup_spec: tuple | None = None) -> str:
+    """subgroup_spec：可选参数子组规格 (order, case_subgroup, tag_fn)，由调用方提供；
+    未提供则分类内保持扁平。engineering 不传（无子组）。"""
+    if subgroup_spec:
+        SUBGROUP_ORDER, case_subgroup, subgroup_tag = subgroup_spec
+    else:
+        SUBGROUP_ORDER, case_subgroup, subgroup_tag = [], None, None
     summary = collector.summary()
     suites: dict[str, list[CaseRecord]] = {}
     for rec in collector.records:
@@ -243,7 +251,27 @@ def render_html(collector: Collector, meta: dict[str, Any],
             f"<div class='suite-title'>{_esc(suite)} "
             f"<small style='color:#6b7280'>({n_pass}/{len(records)} 通过)</small></div>"
         ]
-        block.extend(_render_case(r) for r in records)
+        # 参数子组（仅"采样与输出预算"分类内的模块有子组映射）
+        subgroups: dict[str | None, list[CaseRecord]] = {}
+        for r in records:
+            sg = case_subgroup(r.suite, r.case_id) if case_subgroup else None
+            subgroups.setdefault(sg, []).append(r)
+        if any(k is not None for k in subgroups):
+            # 有子组：按 SUBGROUP_ORDER 渲染子组小标题
+            ordered = [k for k in SUBGROUP_ORDER if k in subgroups]
+            ordered += [None] if None in subgroups else []
+            for sg in ordered:
+                rs = subgroups[sg]
+                n_sg_pass = sum(1 for r in rs if r.outcome == "passed")
+                if sg is not None:
+                    block.append(f"<div class='subgroup-title'>└ {_esc(sg)} "
+                                 f"<small style='color:#6b7280'>({n_sg_pass}/{len(rs)} 通过)</small></div>")
+                for r in rs:
+                    if sg is not None:
+                        r._sg_tag = subgroup_tag(sg)
+                    block.append(_render_case(r))
+        else:
+            block.extend(_render_case(r) for r in records)
         suite_blocks.append("".join(block))
 
     meta_rows = " &nbsp; ".join(

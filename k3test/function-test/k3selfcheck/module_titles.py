@@ -92,6 +92,49 @@ def titles_for(suite: str) -> dict[str, str]:
     return MODULE_TITLES
 
 
+# ---------------------------------------------------------------- 参数子组（采样与输出预算分类内）
+
+SUBGROUP_ORDER = [
+    "max_tokens（输出预算）",
+    "temperature",
+    "top_p",
+    "frequency_penalty",
+    "presence_penalty",
+    "stop（停止控制）",
+    "固定采样值",
+]
+
+SUBGROUP_TITLES = {
+    "test_31_02_max_tokens": "max_tokens（输出预算）",
+    "test_32_06_max_tokens": "max_tokens（输出预算）",
+    "test_32_09_temperature": "temperature",
+    "test_32_03_top_p": "top_p",
+    "test_32_04_frequency_penalty": "frequency_penalty",
+    "test_32_05_presence_penalty": "presence_penalty",
+    "test_32_10_stop": "stop（停止控制）",
+    "test_k04_sampling_budget": "固定采样值",
+}
+
+_SUBGROUP_CASE_OVERRIDES = {
+    "test_k04_chat_max_completion_tokens_budget": "max_tokens（输出预算）",
+    "test_k04_responses_max_output_tokens": "max_tokens（输出预算）",
+    "test_k04_messages_max_tokens": "max_tokens（输出预算）",
+}
+
+
+def case_subgroup(suite: str, case_id: str) -> str | None:
+    """用例所属参数子组（仅"采样与输出预算"分类内返回非 None；k04 预算用例按名细分）。"""
+    name = case_id.split("::")[-1].split("[")[0]
+    if name in _SUBGROUP_CASE_OVERRIDES:
+        return _SUBGROUP_CASE_OVERRIDES[name]
+    return SUBGROUP_TITLES.get(suite.rsplit(".", 1)[-1])
+
+
+def subgroup_tag(subgroup: str) -> str:
+    """子组对应的用例标题参数标签，如 max_tokens（输出预算）→ max_tokens。"""
+    return subgroup.split("（")[0]
+
+
 def suite_title(suite: str) -> str:
     """xxx.tests.test_x → 中文标题（未映射回退原名）。"""
     name = suite.rsplit(".", 1)[-1]

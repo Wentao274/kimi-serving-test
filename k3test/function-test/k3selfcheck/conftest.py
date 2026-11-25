@@ -15,7 +15,8 @@ from engineering.core.client import VendorClient
 from engineering.core.config import Settings, from_pytest_config
 from engineering.core.recorder import CaseRecord, Collector
 from engineering.core.report import render_html
-from k3selfcheck.module_titles import titles_for
+from k3selfcheck.module_titles import (SUBGROUP_ORDER, case_subgroup,
+                                       subgroup_tag, titles_for)
 
 SETTINGS: Settings | None = None
 COLLECTOR: Collector | None = None
@@ -175,8 +176,10 @@ def pytest_sessionfinish(session, exitstatus):
     payload = collector.to_dict()
     payload["meta"] = meta
     data_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
-    html_path.write_text(render_html(collector, meta, module_titles=titles_for(_SUITE)),
-                         encoding="utf-8")
+    html_path.write_text(
+        render_html(collector, meta, module_titles=titles_for(_SUITE),
+                    subgroup_spec=(SUBGROUP_ORDER, case_subgroup, subgroup_tag)),
+        encoding="utf-8")
 
     summary = collector.summary()
     print("\n" + "=" * 70)

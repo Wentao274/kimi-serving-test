@@ -26,9 +26,12 @@ from pathlib import Path
 # 功能套件模块名→中文标题（与 k31basesuite 单一数据源对齐）
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "k31test" / "function-test"))
 try:
-    from k31basesuite.module_titles import titles_for as _func_titles_for
+    from k31basesuite.module_titles import (SUBGROUP_ORDER, case_subgroup,
+                                            subgroup_tag,
+                                            titles_for as _func_titles_for)
 except ImportError:
     _func_titles_for = None
+    SUBGROUP_ORDER, case_subgroup, subgroup_tag = [], None, None
 
 # 当前运行套件的模块标题映射（main 中按套件设置；默认对外版口径）
 _ACTIVE_TITLES: dict[str, str] = {}
@@ -45,6 +48,7 @@ body { font-family: -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif; ma
 .container { padding: 16px 32px 48px; }
 h2 { font-size: 15px; margin: 20px 0 8px; color: #374151; }
 .suite-title { font-size: 15px; font-weight: 700; margin: 22px 0 8px; color: #374151; }
+.subgroup-title { font-size: 13px; font-weight: 600; margin: 12px 0 6px 14px; color: #4b5563; }
 table.sum { border-collapse: collapse; background: #fff; font-size: 13px; box-shadow: 0 1px 2px rgba(0,0,0,.06); }
 table.sum th, table.sum td { border: 1px solid #d8dfeb; padding: 6px 14px; text-align: left; }
 table.sum th { background: #e3edfc; color: #1e3a8a; }
@@ -88,22 +92,50 @@ pre.error { background: #2d0a0a; color: #ffb4b4; }
 """
 
 _JS = """
-function filterCases(status, btn) {
-  document.querySelectorAll('.toolbar button').forEach(b => b.classList.remove('active'));
-  if (btn) btn.classList.add('active');
+// 多选过滤：按钮可切换，多个状态取并集；「全部显示」为重置。
+function _applyFilter() {
+  // 收集已选状态（"全部显示"不计入，它仅作重置按钮）
+  var actives = [];
+  document.querySelectorAll('.toolbar button.active').forEach(b => {
+    if (b.dataset.status !== 'all') actives.push(b.dataset.status);
+  });
+  var showAll = actives.length === 0;
+  // "全部显示"按钮的高亮态 = 是否没有任何筛选
+  document.querySelectorAll('.toolbar button[data-status="all"]').forEach(b =>
+    b.classList.toggle('active', showAll));
   document.querySelectorAll('.case').forEach(c => {
     var st = c.dataset.status;
-    var show = (status === 'all') || (st === status) ||
-      (status === 'warn' && c.dataset.warn === '1') ||
-      (status === 'mismatch' && (st === 'vendor_only_fail' || st === 'official_only_fail'));
+    var show = showAll
+      || actives.includes(st)
+      || (actives.includes('warn') && c.dataset.warn === '1')
+      || (actives.includes('mismatch') && (st === 'vendor_only_fail' || st === 'official_only_fail'));
     c.style.display = show ? '' : 'none';
   });
 }
-function filterByCard(status) {
-  document.querySelectorAll('.toolbar button').forEach(b => b.classList.toggle('active', b.dataset.status === status));
-  filterCases(status, null);
+function filterCases(status, btn) {
+  // 切换该状态的选中态（保留其他已选状态，实现多选）；
+  // 选择任何筛选标签时，"全部显示"自动取消选中
+  if (btn && status !== 'all') {
+    btn.classList.toggle('active');
+    document.querySelectorAll('.toolbar button[data-status="all"]')
+      .forEach(b => b.classList.remove('active'));
+  } else if (btn && status === 'all') {
+    document.querySelectorAll('.toolbar button').forEach(b => b.classList.remove('active'));
+  }
+  _applyFilter();
 }
-function showAll(btn) { filterCases('all', btn); }
+function filterByCard(status) {
+  // 卡片点击与按钮一致：切换该状态选中态（多选）
+  document.querySelectorAll('.toolbar button').forEach(b => {
+    if (b.dataset.status === status) b.classList.toggle('active');
+  });
+  _applyFilter();
+}
+function showAll(btn) {
+  document.querySelectorAll('.toolbar button').forEach(b => b.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+  _applyFilter();
+}
 function showMismatch(btn) { filterCases('mismatch', btn); }
 function toggleCase(el) { el.closest('.case').classList.toggle('open'); }
 """
@@ -252,16 +284,20 @@ def _rate(passed: int, total: int, skipped: int) -> float:
 
 
 def _bucket(outcome: str) -> str:
-    """把 outcome 归为三桶：passed / failed / other（skipped、missing 不计入失败）。"""
+    """把 outcome 归为五桶：passed / failed / skipped / other（missing）。"""
     if outcome == "passed":
         return "passed"
     if outcome in ("failed", "error"):
         return "failed"
+    if outcome == "skipped":
+        return "skipped"
     return "other"
 
 
 def render_dual(vrec, orec, vsum, osum, vmeta, ometa, model: str, stamp: str) -> str:
-    cats = {"both_pass": 0, "vendor_only_fail": 0, "official_only_fail": 0, "both_fail": 0, "other": 0}
+    cats = {"both_pass": 0, "vendor_only_fail": 0, "official_only_fail": 0,
+            "both_fail": 0, "vendor_fail_official_skip": 0,
+            "official_fail_vendor_skip": 0, "other": 0}
     suites: dict[str, list[tuple[str, dict | None, dict | None, str]]] = {}
     for cid in sorted(set(vrec) | set(orec)):
         v, o = vrec.get(cid), orec.get(cid)
@@ -275,6 +311,10 @@ def render_dual(vrec, orec, vsum, osum, vmeta, ometa, model: str, stamp: str) ->
             status = "official_only_fail"
         elif vb == "failed" and ob == "failed":
             status = "both_fail"
+        elif vb == "failed" and ob == "skipped":
+            status = "vendor_fail_official_skip"
+        elif vb == "skipped" and ob == "failed":
+            status = "official_fail_vendor_skip"
         else:
             status = "other"
         cats[status] += 1
@@ -287,24 +327,52 @@ def render_dual(vrec, orec, vsum, osum, vmeta, ometa, model: str, stamp: str) ->
 
     suite_html = []
     n_warn_cases = 0
+
+    def _emit_case(cid, v, o, status, sg_tag: str) -> None:
+        nonlocal n_warn_cases
+        cls = "case" + (" mismatch" if status in ("vendor_only_fail", "official_only_fail") else "")
+        v_cls = "vendor_only_fail" if status == "vendor_only_fail" else ("official_only_fail" if status == "official_only_fail" else "")
+        o_cls = "official_only_fail" if status == "official_only_fail" else ("vendor_only_fail" if status == "vendor_only_fail" else "")
+        has_warn = _has_warn(v) or _has_warn(o)
+        if has_warn:
+            n_warn_cases += 1
+        if sg_tag and v:
+            v = {**v, "title": f"[{sg_tag}] {v.get('title') or cid}"}
+        if sg_tag and o:
+            o = {**o, "title": f"[{sg_tag}] {o.get('title') or cid}"}
+        suite_html.append(
+            f"<div class='{cls}' data-status='{status}' data-warn='{1 if has_warn else 0}'>"
+            f"{_render_lane(v, 'lane vendor ' + v_cls, status)}"
+            f"{_render_lane(o, 'lane official ' + o_cls, status)}"
+            f"</div>"
+        )
+
     for suite, cases in suites.items():
         np_ = sum(1 for _, v, _, _ in cases if v and v["outcome"] == "passed")
         no_ = sum(1 for _, _, o, _ in cases if o and o["outcome"] == "passed")
         suite_html.append(f"<div class='suite-title'>{_esc(suite)} "
                           f"<small style='color:#6b7280'>({len(cases)} 用例 | 供应商 {np_} 通过 | 官方 {no_} 通过)</small></div>")
+        # 参数子组（仅"采样与输出预算"分类内的模块有子组映射）
+        subgroups: dict[str | None, list] = {}
         for cid, v, o, status in cases:
-            cls = "case" + (" mismatch" if status in ("vendor_only_fail", "official_only_fail") else "")
-            v_cls = "vendor_only_fail" if status == "vendor_only_fail" else ("official_only_fail" if status == "official_only_fail" else "")
-            o_cls = "official_only_fail" if status == "official_only_fail" else ("vendor_only_fail" if status == "vendor_only_fail" else "")
-            has_warn = _has_warn(v) or _has_warn(o)
-            if has_warn:
-                n_warn_cases += 1
-            suite_html.append(
-                f"<div class='{cls}' data-status='{status}' data-warn='{1 if has_warn else 0}'>"
-                f"{_render_lane(v, 'lane vendor ' + v_cls, status)}"
-                f"{_render_lane(o, 'lane official ' + o_cls, status)}"
-                f"</div>"
-            )
+            sg = case_subgroup((v or o).get("suite", "") if (v or o) else "", cid) if case_subgroup else None
+            subgroups.setdefault(sg, []).append((cid, v, o, status))
+        if any(k is not None for k in subgroups):
+            ordered = [k for k in SUBGROUP_ORDER if k in subgroups]
+            ordered += [None] if None in subgroups else []
+            for sg in ordered:
+                rs = subgroups[sg]
+                n_v = sum(1 for _, v, _, _ in rs if v and v["outcome"] == "passed")
+                n_o = sum(1 for _, _, o, _ in rs if o and o["outcome"] == "passed")
+                if sg is not None:
+                    suite_html.append(
+                        f"<div class='subgroup-title'>└ {_esc(sg)} "
+                        f"<small style='color:#6b7280'>(供应商 {n_v}/{len(rs)} | 官方 {n_o}/{len(rs)})</small></div>")
+                for cid, v, o, status in rs:
+                    _emit_case(cid, v, o, status, subgroup_tag(sg) if sg is not None else "")
+        else:
+            for cid, v, o, status in cases:
+                _emit_case(cid, v, o, status, "")
 
     meta_rows = " &nbsp; ".join([
         f"<span>模型: <code>{_esc(model)}</code></span>",
@@ -324,6 +392,8 @@ def render_dual(vrec, orec, vsum, osum, vmeta, ometa, model: str, stamp: str) ->
             ("failed", cats['vendor_only_fail'], "仅供应商失败", "vendor_only_fail"),
             ("warn", cats['official_only_fail'], "仅官方失败", "official_only_fail"),
             ("failed", cats['both_fail'], "双均失败", "both_fail"),
+            ("failed", cats['vendor_fail_official_skip'], "供应商失败(官方跳过)", "vendor_fail_official_skip"),
+            ("warn", cats['official_fail_vendor_skip'], "官方失败(供应商跳过)", "official_fail_vendor_skip"),
             ("other", cats['other'], "其他/未执行", "other"),
             ("warn", n_warn_cases, "软性警告", "warn"),
         ]
@@ -349,6 +419,8 @@ def render_dual(vrec, orec, vsum, osum, vmeta, ometa, model: str, stamp: str) ->
   <button data-status="vendor_only_fail" onclick="filterCases('vendor_only_fail', this)">仅供应商失败</button>
   <button data-status="official_only_fail" onclick="filterCases('official_only_fail', this)">仅官方失败</button>
   <button data-status="both_fail" onclick="filterCases('both_fail', this)">双均失败</button>
+  <button data-status="vendor_fail_official_skip" onclick="filterCases('vendor_fail_official_skip', this)">供应商失败(官方跳过)</button>
+  <button data-status="official_fail_vendor_skip" onclick="filterCases('official_fail_vendor_skip', this)">官方失败(供应商跳过)</button>
   <button data-status="other" onclick="filterCases('other', this)">其他/未执行</button>
   <button data-status="warn" onclick="filterCases('warn', this)">软性警告</button>
   <button data-status="mismatch" onclick="showMismatch(this)">仅看不一致</button>
@@ -378,7 +450,9 @@ def main() -> int:
     safe_model = "".join(c if (c.isalnum() or c in "._-") else "_" for c in model)
     stamp = time.strftime("%Y%m%d%H%M%S")
 
-    cats = {"bothpass": 0, "vendoronlyfail": 0, "officialonlyfail": 0, "bothfail": 0, "other": 0}
+    cats = {"bothpass": 0, "vendoronlyfail": 0, "officialonlyfail": 0,
+            "bothfail": 0, "vendorfailofficialskip": 0,
+            "officialfailvendorskip": 0, "other": 0}
     for cid in set(vrec) | set(orec):
         v, o = vrec.get(cid), orec.get(cid)
         vb = _bucket(v["outcome"]) if v else "other"
@@ -391,6 +465,10 @@ def main() -> int:
             cats["officialonlyfail"] += 1
         elif vb == "failed" and ob == "failed":
             cats["bothfail"] += 1
+        elif vb == "failed" and ob == "skipped":
+            cats["vendorfailofficialskip"] += 1
+        elif vb == "skipped" and ob == "failed":
+            cats["officialfailvendorskip"] += 1
         else:
             cats["other"] += 1
 
