@@ -54,6 +54,12 @@ def test_32_12_include_usage_false(client, rec):
     usage_chunks = [c for c in chunks if _chunk_usage(c)]
     rec.expect("流中无 usage 块（含 choices 内嵌形态）", not usage_chunks,
                f"n_usage_chunks={len(usage_chunks)} usage={r.usage}")
+    if usage_chunks:
+        # 官方也有相同问题（官方在 include_usage=false 时同样返回 usage，choices 内嵌形态）
+        rec.check("官方也有相同问题（include_usage=false 时官方同样返回 usage）",
+                  True,
+                  "供应商=顶层 usage 块；官方=choices 内嵌 usage（双方均违反 include_usage=false 契约）",
+                  soft=True)
     # soft 记录：usage 出现形态（顶层独立块 / choices 内嵌），供双方行为比对
     top_level = [c for c in usage_chunks if c.get("usage")]
     nested = [c for c in usage_chunks if not c.get("usage") and _nested_usage(c)]

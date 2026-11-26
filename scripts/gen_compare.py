@@ -62,6 +62,7 @@ table.sum th { background: #e3edfc; color: #1e3a8a; }
 .badge.passed { background: #16a34a; } .badge.failed { background: #dc2626; }
 .badge.error { background: #b45309; } .badge.skipped { background: #6b7280; }
 .badge.missing { background: #9ca3af; } .badge.warn { background: #d97706; }
+.badge.samefail { background: #7c3aed; }
 .ttl { font-size: 12px; font-weight: 600; flex: 1; word-break: break-all; }
 .time { font-size: 11px; color: #6b7280; white-space: nowrap; }
 .body { display: none; border-top: 1px solid #e5e7eb; padding: 8px 12px; }
@@ -190,7 +191,7 @@ def _has_warn(rec: dict | None) -> bool:
                              for a in rec.get("assertions") or [])
 
 
-def _render_lane(rec: dict | None, side: str, status: str) -> str:
+def _render_lane(rec: dict | None, side: str, status: str, extra_badge: str = "") -> str:
     if rec is None:
         return f"<div class='lane {side}'><div class='head'><span class='badge missing'>N/A</span><span class='ttl'>未执行</span></div></div>"
     outcome = rec.get("outcome", "passed")
@@ -215,6 +216,7 @@ def _render_lane(rec: dict | None, side: str, status: str) -> str:
         f"<div class='head' onclick='toggleCase(this)'>",
         f"<span class='badge {outcome}'>{outcome.upper()}</span>",
         warn_badge,
+        extra_badge,
         f"<span class='ttl'>{_esc(rec.get('title') or rec.get('case_id'))}</span>",
         f"<span class='time'>{_esc(' | '.join(bits))}</span>",
         "</div><div class='body'>",
@@ -340,9 +342,12 @@ def render_dual(vrec, orec, vsum, osum, vmeta, ometa, model: str, stamp: str) ->
             v = {**v, "title": f"[{sg_tag}] {v.get('title') or cid}"}
         if sg_tag and o:
             o = {**o, "title": f"[{sg_tag}] {o.get('title') or cid}"}
+        # both_fail（官方同失败）：供应商 lane 标注"官方也有相同问题"，与供应商独有问题区分
+        same_badge = ("<span class='badge samefail' title='官方也有相同问题（双方同失败）'>"
+                      "官方同失败</span>") if status == "both_fail" else ""
         suite_html.append(
             f"<div class='{cls}' data-status='{status}' data-warn='{1 if has_warn else 0}'>"
-            f"{_render_lane(v, 'lane vendor ' + v_cls, status)}"
+            f"{_render_lane(v, 'lane vendor ' + v_cls, status, extra_badge=same_badge)}"
             f"{_render_lane(o, 'lane official ' + o_cls, status)}"
             f"</div>"
         )
