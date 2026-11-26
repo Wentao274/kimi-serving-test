@@ -65,7 +65,11 @@ class CaseRecord:
             "curl": build_curl("POST", url, masked_headers, request_body),
         }
         self.response_status = result.status_code
-        self.response = result.response_json if result.response_json is not None else result.raw_text
+        # 流式请求保存原始 SSE 文本作为响应证据（而非重组消息）；非流式仍存 response_json
+        if getattr(result, "stream", False):
+            self.response = result.raw_text or result.response_json
+        else:
+            self.response = result.response_json if result.response_json is not None else result.raw_text
         self.latency_s = round(result.latency_s, 3)
         self.ttft_s = round(result.ttft_s, 3) if result.ttft_s is not None else None
         self.usage = result.usage or {}
